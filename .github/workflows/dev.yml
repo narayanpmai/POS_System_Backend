@@ -122,17 +122,6 @@ jobs:
           npm install --omit=dev --ignore-scripts
           npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
 
-      - name: Run Prisma migrations
-        shell: bash
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm use --lts
-
-          cd "$HOME/koselighar-backend-dev"
-          npx prisma migrate deploy
-          echo "✓ Prisma migrations applied"
-
       - name: Ensure uploads folder exists (dev)
         shell: bash
         run: |
