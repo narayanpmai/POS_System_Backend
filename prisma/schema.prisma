@@ -1,0 +1,255 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   Int                    @id @default(autoincrement())
+  email                String                 @unique
+  password             String
+  name                 String
+  roleId               Int
+  role                 Role                   @relation(fields: [roleId], references: [id])
+  active               Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  sales                Sale[]
+  shifts               Shift[]
+  activityLogs         ActivityLog[]
+  inventoryTransactions InventoryTransaction[]
+  purchases            Purchase[]
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // e.g. "Admin", "Cashier"
+  description String?
+  users       User[]
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?  @unique
+  address   String?
+  points    Int      @default(0) // Loyalty points
+  sales     Sale[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Supplier {
+  id                    Int                    @id @default(autoincrement())
+  name                  String
+  contactName           String?
+  email                 String?
+  phone                 String?
+  address               String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  inventoryTransactions InventoryTransaction[]
+  purchases             Purchase[]
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  SKU                  String                 @unique
+  barcode              String?                @unique
+  description          String?
+  price                Float                  // Selling price
+  cost                 Float                  // Buying/Cost price
+  stock                Int                    @default(0)
+  minStockAlert        Int                    @default(5)
+  unit                 String                 @default("pcs") // Measurement Unit
+  categoryId           Int
+  category             Category               @relation(fields: [categoryId], references: [id])
+  brandId              Int?
+  brand                Brand?                 @relation(fields: [brandId], references: [id])
+  taxRate              Float                  @default(0.0) // E.g. 13.0 for 13% tax
+  image                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  saleItems            SaleItem[]
+  inventoryTransactions InventoryTransaction[]
+  purchaseItems        PurchaseItem[]
+}
+
+model Brand {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  slug        String    @unique
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Purchase {
+  id             Int            @id @default(autoincrement())
+  poNumber       String         @unique // e.g., "PO-2026-0001"
+  supplierId     Int?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  status         String         @default("RECEIVED") // PENDING, RECEIVED
+  totalAmount    Float
+  purchaseDate   DateTime       @default(now()) // Purchase Date
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  items          PurchaseItem[]
+  userId         Int            // Who created it
+  user           User           @relation(fields: [userId], references: [id])
+}
+
+model PurchaseItem {
+  id             Int           @id @default(autoincrement())
+  purchaseId     Int
+  purchase       Purchase      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product       @relation(fields: [productId], references: [id])
+  quantity       Int
+  measurementUnit String       @default("pcs") // Measurement Unit at time of purchase
+  costPrice      Float         // cost per unit at the time of purchase
+  total          Float
+}
+
+model InventoryTransaction {
+  id         Int             @id @default(autoincrement())
+  productId  Int
+  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type       String          // "STOCK_IN", "STOCK_OUT"
+  quantity   Int
+  reason     String?         // e.g. "Purchase", "Sale", "Damage", "Return"
+  supplierId Int?
+  supplier   Supplier?       @relation(fields: [supplierId], references: [id])
+  userId     Int
+  user       User            @relation(fields: [userId], references: [id])
+  createdAt  DateTime        @default(now())
+}
+
+model Sale {
+  id             Int        @id @default(autoincrement())
+  invoiceNo      String     @unique // e.g. "INV-2026-0001"
+  customerId     Int?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  cashierId      Int
+  cashier        User       @relation(fields: [cashierId], references: [id])
+  subtotal       Float
+  taxAmount      Float
+  discountAmount Float
+  totalAmount    Float
+  paymentMethod  String     // "CASH", "CARD", "QR"
+  paymentStatus  String     // "PAID", "PARTIAL", "UNPAID"
+  items          SaleItem[]
+  createdAt      DateTime   @default(now())
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float   // Selling price at the time of sale
+  cost      Float   // Product cost at the time of sale (for profit reports)
+  taxAmount Float
+  total     Float
+}
+
+model Shift {
+  id         Int       @id @default(autoincrement())
+  employeeId Int
+  employee   User      @relation(fields: [employeeId], references: [id])
+  startTime  DateTime  @default(now())
+  endTime    DateTime?
+  cashStart  Float
+  cashEnd    Float?
+  status     String    @default("OPEN") // "OPEN", "CLOSED"
+  createdAt  DateTime  @default(now())
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // e.g. "DELETE_PRODUCT", "MANUAL_STOCK_ADJUST"
+  details   String?
+  timestamp DateTime @default(now())
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  referenceNo String?
+  category    String   // "OPERATIONAL", "CAPITAL", "UNEXPECTED", or custom categories
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StoreSetting {
+  id             Int      @id @default(1)
+  storeName      String   @default("SmartPOS Retail")
+  address        String   @default("123 Business St, Tech City")
+  phone          String   @default("+1 555-0199")
+  email          String   @default("info@smartpos.com")
+  taxNumber      String   @default("TAX-987654321")
+  currencySymbol String   @default("$")
+  receiptHeader  String   @default("Thank you for shopping with us!")
+  receiptFooter  String   @default("Please come again! Power by SmartPOS.")
+  taxRateDefault Float    @default(13.0)
+  invoicePrefix  String   @default("PTRM")
+  updatedAt      DateTime @updatedAt
+}
+
+model ExpenseCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FiscalYear {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique // e.g. "2080/081"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Income {
+  id          Int      @id @default(autoincrement())
+  referenceNo String?
+  category    String   // "EXPORT_FEE", "SERVICE_CHARGE", "OTHER" or custom
+  amount      Float
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model IncomeCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
