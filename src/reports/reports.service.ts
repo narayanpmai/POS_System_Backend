@@ -564,7 +564,7 @@ export class ReportsService {
       })
     ]);
 
-    const pastIncome = pastSales._sum.totalAmount || 0;
+    const pastIncome = (pastSales._sum.totalAmount || 0) + (pastIncomes._sum.amount || 0);
     const pastOutflow = (pastExpenses._sum.amount || 0) + (pastPurchases._sum.totalAmount || 0);
     const openingBalance = pastIncome - pastOutflow;
 

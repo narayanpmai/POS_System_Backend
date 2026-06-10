@@ -91,24 +91,14 @@ export class ProductsService {
       if (barcodeExists) throw new BadRequestException('Barcode must be unique');
     }
 
+    // Force initial stock to 0 so that it only comes from Purchases
+    const productData = { ...dto, stock: 0 };
+    
     // Create product
     const product = await this.prisma.product.create({
-      data: dto,
+      data: productData,
       include: { category: true },
     });
-
-    // Create Initial Stock Transaction
-    if (dto.stock > 0) {
-      await this.prisma.inventoryTransaction.create({
-        data: {
-          productId: product.id,
-          type: 'STOCK_IN',
-          quantity: dto.stock,
-          reason: 'Initial Product Stock Creation',
-          userId: userId,
-        },
-      });
-    }
 
     return product;
   }
