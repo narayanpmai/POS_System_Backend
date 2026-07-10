@@ -142,6 +142,9 @@ jobs:
 
           cd "$HOME/koselighar-backend-dev"
 
+          echo "Pushing database schema changes..."
+          npx prisma db push --accept-data-loss
+
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
             pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
           else
