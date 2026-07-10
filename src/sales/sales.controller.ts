@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/sales.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -37,9 +37,36 @@ export class SalesController {
     return this.salesService.findAllSales({ page, limit, search, startDate, endDate });
   }
 
+  @Get('deleted')
+  @ApiOperation({ summary: 'Get all deleted sales log (Admin only)' })
+  getDeletedSales(@Req() req: any) {
+    if (req.user.role.name !== 'Admin') {
+      throw new Error('Unauthorized');
+    }
+    return this.salesService.getDeletedSales();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific sale transaction for invoice/receipt' })
   findSaleById(@Param('id', ParseIntPipe) id: number) {
     return this.salesService.findSaleById(id);
+  }
+
+  @Delete('clear-all')
+  @ApiOperation({ summary: 'Clear all sales data (Admin only)' })
+  clearAllSales(@Req() req: any) {
+    if (req.user.role.name !== 'Admin') {
+      throw new Error('Unauthorized');
+    }
+    return this.salesService.clearAllSales();
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a sale transaction and revert stock (Admin only)' })
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    if (req.user.role.name !== 'Admin') {
+      throw new Error('Unauthorized');
+    }
+    return this.salesService.remove(id, req.user.id);
   }
 }

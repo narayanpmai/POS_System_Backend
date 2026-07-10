@@ -455,11 +455,9 @@ export class ReportsService {
     }
 
     for (const inc of incomes) {
-      if (inc.category.toLowerCase() === 'investment' || inc.category.toLowerCase() === 'capital') {
-        const dateKey = inc.date.toISOString().split('T')[0];
-        if (dailyDataMap[dateKey]) {
-          dailyDataMap[dateKey].investment += inc.amount;
-        }
+      const dateKey = inc.date.toISOString().split('T')[0];
+      if (dailyDataMap[dateKey]) {
+        dailyDataMap[dateKey].investment += inc.amount;
       }
     }
 
