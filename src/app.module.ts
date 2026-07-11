@@ -22,7 +22,6 @@ import { IncomeCategoriesModule } from './income-categories/income-categories.mo
     // Load environment variables globally
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.APP_ENV}`, '.env'],
     }),
     PrismaModule,
     AuthModule,

@@ -236,4 +236,88 @@ export class SalesService {
     if (!sale) throw new NotFoundException('Transaction not found');
     return sale;
   }
+
+  async remove(id: number, adminId: number) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      include: {
+        items: { include: { product: true } },
+        customer: true,
+        cashier: { select: { name: true } },
+      },
+    });
+    if (!sale) throw new NotFoundException('Sale not found');
+
+    return await this.prisma.$transaction(async (tx) => {
+      // 0. Save snapshot to DeletedSale log
+      const itemsSnapshot = JSON.stringify(
+        sale.items.map((i: any) => ({
+          productName: i.product?.name || 'N/A',
+          quantity: i.quantity,
+          price: i.price,
+          total: i.total,
+        }))
+      );
+
+      await tx.deletedSale.create({
+        data: {
+          originalSaleId: sale.id,
+          invoiceNo: sale.invoiceNo,
+          customerName: sale.customer?.name || null,
+          cashierName: sale.cashier?.name || null,
+          totalAmount: sale.totalAmount,
+          itemsSnapshot,
+          deletedById: adminId,
+        },
+      });
+
+      // 1. Revert inventory
+      for (const item of sale.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+
+        await tx.inventoryTransaction.create({
+          data: {
+            productId: item.productId,
+            type: 'STOCK_IN',
+            quantity: item.quantity,
+            reason: `Reverted Sale Deletion - Invoice ${sale.invoiceNo}`,
+            userId: adminId,
+          },
+        });
+      }
+
+      // 2. Revert points
+      if (sale.customerId) {
+        const pointsEarned = Math.floor(sale.totalAmount / 10);
+        if (pointsEarned > 0) {
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: { points: { decrement: pointsEarned } },
+          });
+        }
+      }
+
+      // 3. Delete sale (cascades to items)
+      return await tx.sale.delete({ where: { id } });
+    });
+  }
+
+  async clearAllSales() {
+    await this.prisma.saleItem.deleteMany();
+    await this.prisma.sale.deleteMany();
+    return { message: 'Sales data cleared successfully' };
+  }
+
+  async getDeletedSales() {
+    const deletedSales = await this.prisma.deletedSale.findMany({
+      orderBy: { deletedAt: 'desc' },
+    });
+    return deletedSales.map((s) => ({
+      ...s,
+      items: (() => { try { return JSON.parse(s.itemsSnapshot); } catch { return []; } })()
+    }));
+  }
 }
