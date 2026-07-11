@@ -143,6 +143,7 @@ jobs:
           cd "$HOME/koselighar-backend-dev"
 
           echo "Pushing database schema changes..."
+          cp .env.development .env || true
           npx prisma db push --accept-data-loss
 
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
