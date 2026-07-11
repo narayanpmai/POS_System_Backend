@@ -23,7 +23,7 @@ export class UsersService {
   }
 
   async create(data: any) {
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+    const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
     if (existing) {
       throw new BadRequestException('Email already in use');
     }
@@ -49,7 +49,7 @@ export class UsersService {
     if (!user) throw new NotFoundException('User not found');
 
     if (data.email && data.email !== user.email) {
-      const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+      const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
       if (existing) throw new BadRequestException('Email already in use');
     }
 

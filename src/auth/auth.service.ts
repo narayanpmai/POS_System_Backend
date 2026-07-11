@@ -12,8 +12,7 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+    const user = await this.prisma.user.findFirst({ where: { email: dto.email },
       include: { role: true },
     });
 
@@ -40,8 +39,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const exists = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+    const exists = await this.prisma.user.findFirst({ where: { email: dto.email },
     });
 
     if (exists) {
@@ -84,9 +82,7 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.prisma.user.findFirst({ where: { email } });
     if (!user) {
       // Don't leak existence in production, just return success
       return { message: 'If this email exists, a password reset link has been sent' };

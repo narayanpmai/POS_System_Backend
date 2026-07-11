@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +16,8 @@ import { ExpenseCategoriesModule } from './expense-categories/expense-categories
 import { FiscalYearsModule } from './fiscal-years/fiscal-years.module';
 import { IncomesModule } from './incomes/incomes.module';
 import { IncomeCategoriesModule } from './income-categories/income-categories.module';
+import { TenantMiddleware } from './tenant/tenant.middleware';
+
 
 @Module({
   imports: [
@@ -43,4 +45,8 @@ import { IncomeCategoriesModule } from './income-categories/income-categories.mo
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantMiddleware).forRoutes('*');
+  }
+}

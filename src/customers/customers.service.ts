@@ -8,8 +8,7 @@ export class CustomersService {
 
   async create(dto: CreateCustomerDto) {
     if (dto.phone) {
-      const exists = await this.prisma.customer.findUnique({
-        where: { phone: dto.phone },
+      const exists = await this.prisma.customer.findFirst({ where: { phone: dto.phone },
       });
       if (exists) {
         throw new BadRequestException('A customer with this phone number is already registered');
@@ -67,9 +66,7 @@ export class CustomersService {
   }
 
   async findByPhone(phone: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { phone },
-    });
+    const customer = await this.prisma.customer.findFirst({ where: { phone } });
     if (!customer) throw new NotFoundException(`Customer with phone number ${phone} not found`);
     return customer;
   }
@@ -78,8 +75,7 @@ export class CustomersService {
     const current = await this.findOne(id);
 
     if (dto.phone && dto.phone !== current.phone) {
-      const exists = await this.prisma.customer.findUnique({
-        where: { phone: dto.phone },
+      const exists = await this.prisma.customer.findFirst({ where: { phone: dto.phone },
       });
       if (exists) {
         throw new BadRequestException('A customer with this phone number is already registered');
