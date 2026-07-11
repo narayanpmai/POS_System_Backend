@@ -108,8 +108,9 @@ jobs:
         shell: bash
         run: |
           cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env.development"
-          chmod 644 "$HOME/koselighar-backend-dev/.env.development"
-          echo "✓ .env.development file copied"
+          cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env"
+          chmod 644 "$HOME/koselighar-backend-dev/.env.development" "$HOME/koselighar-backend-dev/.env"
+          echo "✓ env files copied"
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
@@ -143,7 +144,7 @@ jobs:
           cd "$HOME/koselighar-backend-dev"
 
           echo "Pushing database schema changes..."
-          DATABASE_URL=$(grep -E "^DATABASE_URL=" .env.development | cut -d'=' -f2- | sed -e 's/^"//' -e 's/"$//') npx prisma db push --accept-data-loss
+          npx prisma db push --accept-data-loss
 
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
             pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
