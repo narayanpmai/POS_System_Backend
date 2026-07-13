@@ -146,6 +146,9 @@ jobs:
           echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
 
+          echo "Seeding Koseli Ghar tenant, roles and admin user..."
+          node seed-koselighar.js || echo "Seed already up to date"
+
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
             pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
           else

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
@@ -23,25 +23,50 @@ export class UsersService {
   }
 
   async create(data: any) {
+    // Validate required fields
+    if (!data.name || !data.email || !data.password) {
+      throw new BadRequestException('Name, email, and password are required');
+    }
+    if (!data.roleId) {
+      throw new BadRequestException('Role is required');
+    }
+
+    // Validate that the role exists
+    const role = await this.prisma.role.findUnique({ where: { id: Number(data.roleId) } });
+    if (!role) {
+      throw new BadRequestException(`Role with ID ${data.roleId} does not exist. Please select a valid role.`);
+    }
+
+    // Check if email is already in use
     const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
     if (existing) {
       throw new BadRequestException('Email already in use');
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        password: hashedPassword,
-        roleId: data.roleId,
-        active: data.active ?? true,
-      },
-      include: { role: true }
-    });
-    
-    const { password, ...rest } = user;
-    return rest;
+    try {
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      const user = await this.prisma.user.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          password: hashedPassword,
+          roleId: Number(data.roleId),
+          active: data.active ?? true,
+        },
+        include: { role: true }
+      });
+      
+      const { password, ...rest } = user;
+      return rest;
+    } catch (err: any) {
+      if (err.code === 'P2003') {
+        throw new BadRequestException('Invalid role selected. Please choose a valid role.');
+      }
+      if (err.code === 'P2002') {
+        throw new BadRequestException('A user with this email already exists.');
+      }
+      throw new InternalServerErrorException('Failed to create user: ' + (err.message || 'Unknown error'));
+    }
   }
 
   async update(id: number, data: any) {
@@ -53,25 +78,42 @@ export class UsersService {
       if (existing) throw new BadRequestException('Email already in use');
     }
 
-    const updateData: any = {
-      name: data.name,
-      email: data.email,
-      roleId: data.roleId,
-      active: data.active
-    };
+    // Validate roleId if provided
+    if (data.roleId) {
+      const role = await this.prisma.role.findUnique({ where: { id: Number(data.roleId) } });
+      if (!role) {
+        throw new BadRequestException(`Role with ID ${data.roleId} does not exist.`);
+      }
+    }
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.roleId !== undefined) updateData.roleId = Number(data.roleId);
+    if (data.active !== undefined) updateData.active = data.active;
 
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }
 
-    const updated = await this.prisma.user.update({
-      where: { id },
-      data: updateData,
-      include: { role: true }
-    });
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id },
+        data: updateData,
+        include: { role: true }
+      });
 
-    const { password, ...rest } = updated;
-    return rest;
+      const { password, ...rest } = updated;
+      return rest;
+    } catch (err: any) {
+      if (err.code === 'P2003') {
+        throw new BadRequestException('Invalid role selected.');
+      }
+      if (err.code === 'P2002') {
+        throw new BadRequestException('A user with this email already exists.');
+      }
+      throw new InternalServerErrorException('Failed to update user: ' + (err.message || 'Unknown error'));
+    }
   }
 
   async resetPassword(id: number, data: any) {
