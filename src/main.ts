@@ -7,19 +7,24 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend connectivity
-  const envOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : [];
-
-  const allowedOrigins = [
-    ...envOrigins,
-    process.env.FRONTEND_URL,
+  const frontendUrl = process.env.FRONTEND_URL || '';
+  const origins = [
     'http://localhost:3000',
     'https://koselighar.smartptrm.com',
-  ].filter(Boolean);
+    'http://koselighar.smartptrm.com',
+  ];
+
+  if (frontendUrl) {
+    const customOrigins = frontendUrl.split(',').map((url) => url.trim());
+    customOrigins.forEach((origin) => {
+      if (origin && !origins.includes(origin)) {
+        origins.push(origin);
+      }
+    });
+  }
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: origins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
