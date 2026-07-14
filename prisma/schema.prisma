@@ -7,44 +7,90 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id                   Int                    @id @default(autoincrement())
-  email                String                 @unique
-  password             String
-  name                 String
-  roleId               Int
-  role                 Role                   @relation(fields: [roleId], references: [id])
-  active               Boolean                @default(true)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  sales                Sale[]
-  shifts               Shift[]
-  activityLogs         ActivityLog[]
+model Tenant {
+  id           Int      @id @default(autoincrement())
+  name         String
+  subdomain    String?  @unique
+  customDomain String?  @unique
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users                 User[]
+  roles                 Role[]
+  customers             Customer[]
+  suppliers             Supplier[]
+  categories            Category[]
+  products              Product[]
+  brands                Brand[]
+  purchases             Purchase[]
   inventoryTransactions InventoryTransaction[]
-  purchases            Purchase[]
+  sales                 Sale[]
+  shifts                Shift[]
+  activityLogs          ActivityLog[]
+  expenses              Expense[]
+  storeSettings         StoreSetting[]
+  expenseCategories     ExpenseCategory[]
+  fiscalYears           FiscalYear[]
+  incomes               Income[]
+  incomeCategories      IncomeCategory[]
+  deletedSales          DeletedSale[]
+  purchaseItems         PurchaseItem[]
+  saleItems             SaleItem[]
+}
+
+model User {
+  id                    Int                    @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  email                 String
+  password              String
+  name                  String
+  roleId                Int
+  role                  Role                   @relation(fields: [roleId], references: [id])
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  sales                 Sale[]
+  shifts                Shift[]
+  activityLogs          ActivityLog[]
+  inventoryTransactions InventoryTransaction[]
+  purchases             Purchase[]
+
+  @@unique([email, tenantId])
 }
 
 model Role {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique // e.g. "Admin", "Cashier"
+  id          Int     @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant      Tenant  @relation(fields: [tenantId], references: [id])
+  name        String // e.g. "Admin", "Cashier"
   description String?
   users       User[]
+
+  @@unique([name, tenantId])
 }
 
 model Customer {
   id        Int      @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   name      String
   email     String?
-  phone     String?  @unique
+  phone     String?
   address   String?
   points    Int      @default(0) // Loyalty points
   sales     Sale[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([phone, tenantId])
 }
 
 model Supplier {
   id                    Int                    @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   name                  String
   contactName           String?
   email                 String?
@@ -58,91 +104,115 @@ model Supplier {
 
 model Category {
   id          Int       @id @default(autoincrement())
-  name        String    @unique
+  tenantId Int @default(1)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
   description String?
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([name, tenantId])
 }
 
 model Product {
-  id                   Int                    @id @default(autoincrement())
-  name                 String
-  SKU                  String                 @unique
-  barcode              String?                @unique
-  description          String?
-  price                Float                  // Selling price
-  cost                 Float                  // Buying/Cost price
-  stock                Int                    @default(0)
-  minStockAlert        Int                    @default(5)
-  unit                 String                 @default("pcs") // Measurement Unit
-  categoryId           Int
-  category             Category               @relation(fields: [categoryId], references: [id])
-  brandId              Int?
-  brand                Brand?                 @relation(fields: [brandId], references: [id])
-  taxRate              Float                  @default(0.0) // E.g. 13.0 for 13% tax
-  image                String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  saleItems            SaleItem[]
+  id                    Int                    @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
+  name                  String
+  SKU                   String
+  barcode               String?
+  description           String?
+  price                 Float // Selling price
+  cost                  Float // Buying/Cost price
+  stock                 Int                    @default(0)
+  minStockAlert         Int                    @default(5)
+  unit                  String                 @default("pcs") // Measurement Unit
+  categoryId            Int
+  category              Category               @relation(fields: [categoryId], references: [id])
+  brandId               Int?
+  brand                 Brand?                 @relation(fields: [brandId], references: [id])
+  taxRate               Float                  @default(0.0) // E.g. 13.0 for 13% tax
+  image                 String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  saleItems             SaleItem[]
   inventoryTransactions InventoryTransaction[]
-  purchaseItems        PurchaseItem[]
+  purchaseItems         PurchaseItem[]
+
+  @@unique([SKU, tenantId])
+  @@unique([barcode, tenantId])
 }
 
 model Brand {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique
-  slug        String    @unique
-  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        Int       @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  slug      String
+  status    String    @default("ACTIVE") // ACTIVE, INACTIVE
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([name, tenantId])
+  @@unique([slug, tenantId])
 }
 
 model Purchase {
-  id             Int            @id @default(autoincrement())
-  poNumber       String         @unique // e.g., "PO-2026-0001"
-  supplierId     Int?
-  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
-  status         String         @default("RECEIVED") // PENDING, RECEIVED
-  totalAmount    Float
-  purchaseDate   DateTime       @default(now()) // Purchase Date
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  items          PurchaseItem[]
-  userId         Int            // Who created it
-  user           User           @relation(fields: [userId], references: [id])
+  id           Int            @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  poNumber     String // e.g., "PO-2026-0001"
+  supplierId   Int?
+  supplier     Supplier?      @relation(fields: [supplierId], references: [id])
+  status       String         @default("RECEIVED") // PENDING, RECEIVED
+  totalAmount  Float
+  purchaseDate DateTime       @default(now()) // Purchase Date
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  items        PurchaseItem[]
+  userId       Int // Who created it
+  user         User           @relation(fields: [userId], references: [id])
+
+  @@unique([poNumber, tenantId])
 }
 
 model PurchaseItem {
-  id             Int           @id @default(autoincrement())
-  purchaseId     Int
-  purchase       Purchase      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  productId      Int
-  product        Product       @relation(fields: [productId], references: [id])
-  quantity       Int
-  measurementUnit String       @default("pcs") // Measurement Unit at time of purchase
-  costPrice      Float         // cost per unit at the time of purchase
-  total          Float
+  id              Int      @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  purchaseId      Int
+  purchase        Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product  @relation(fields: [productId], references: [id])
+  quantity        Int
+  measurementUnit String   @default("pcs") // Measurement Unit at time of purchase
+  costPrice       Float // cost per unit at the time of purchase
+  total           Float
 }
 
 model InventoryTransaction {
-  id         Int             @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   productId  Int
-  product    Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  type       String          // "STOCK_IN", "STOCK_OUT"
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type       String // "STOCK_IN", "STOCK_OUT"
   quantity   Int
-  reason     String?         // e.g. "Purchase", "Sale", "Damage", "Return"
+  reason     String? // e.g. "Purchase", "Sale", "Damage", "Return"
   supplierId Int?
-  supplier   Supplier?       @relation(fields: [supplierId], references: [id])
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
   userId     Int
-  user       User            @relation(fields: [userId], references: [id])
-  createdAt  DateTime        @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+  createdAt  DateTime  @default(now())
 }
 
 model Sale {
   id             Int        @id @default(autoincrement())
-  invoiceNo      String     @unique // e.g. "INV-2026-0001"
+  tenantId Int @default(1)
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  invoiceNo      String // e.g. "INV-2026-0001"
   customerId     Int?
   customer       Customer?  @relation(fields: [customerId], references: [id])
   cashierId      Int
@@ -151,27 +221,33 @@ model Sale {
   taxAmount      Float
   discountAmount Float
   totalAmount    Float
-  paymentMethod  String     // "CASH", "CARD", "QR"
-  paymentStatus  String     // "PAID", "PARTIAL", "UNPAID"
+  paymentMethod  String // "CASH", "CARD", "QR"
+  paymentStatus  String // "PAID", "PARTIAL", "UNPAID"
   items          SaleItem[]
   createdAt      DateTime   @default(now())
+
+  @@unique([invoiceNo, tenantId])
 }
 
 model SaleItem {
   id        Int     @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
   saleId    Int
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   productId Int
   product   Product @relation(fields: [productId], references: [id])
   quantity  Int
-  price     Float   // Selling price at the time of sale
-  cost      Float   // Product cost at the time of sale (for profit reports)
+  price     Float // Selling price at the time of sale
+  cost      Float // Product cost at the time of sale (for profit reports)
   taxAmount Float
   total     Float
 }
 
 model Shift {
   id         Int       @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   employeeId Int
   employee   User      @relation(fields: [employeeId], references: [id])
   startTime  DateTime  @default(now())
@@ -184,17 +260,21 @@ model Shift {
 
 model ActivityLog {
   id        Int      @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action    String   // e.g. "DELETE_PRODUCT", "MANUAL_STOCK_ADJUST"
+  action    String // e.g. "DELETE_PRODUCT", "MANUAL_STOCK_ADJUST"
   details   String?
   timestamp DateTime @default(now())
 }
 
 model Expense {
   id          Int      @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   referenceNo String?
-  category    String   // "OPERATIONAL", "CAPITAL", "UNEXPECTED", or custom categories
+  category    String // "OPERATIONAL", "CAPITAL", "UNEXPECTED", or custom categories
   amount      Float
   description String?
   date        DateTime @default(now())
@@ -203,7 +283,9 @@ model Expense {
 }
 
 model StoreSetting {
-  id             Int      @id @default(1)
+  id             Int      @id @default(autoincrement())
+  tenantId Int @default(1) @unique
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
   storeName      String   @default("SmartPOS Retail")
   address        String   @default("123 Business St, Tech City")
   phone          String   @default("+1 555-0199")
@@ -219,26 +301,36 @@ model StoreSetting {
 
 model ExpenseCategory {
   id          Int      @id @default(autoincrement())
-  name        String   @unique
+  tenantId Int @default(1)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([name, tenantId])
 }
 
 model FiscalYear {
   id        Int      @id @default(autoincrement())
-  name      String   @unique // e.g. "2080/081"
+  tenantId Int @default(1)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String // e.g. "2080/081"
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([name, tenantId])
 }
 
 model Income {
   id          Int      @id @default(autoincrement())
+  tenantId Int @default(1)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   referenceNo String?
-  category    String   // "EXPORT_FEE", "SERVICE_CHARGE", "OTHER" or custom
+  category    String // "EXPORT_FEE", "SERVICE_CHARGE", "OTHER" or custom
   amount      Float
   description String?
   date        DateTime @default(now())
@@ -248,20 +340,26 @@ model Income {
 
 model IncomeCategory {
   id          Int      @id @default(autoincrement())
-  name        String   @unique
+  tenantId Int @default(1)
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([name, tenantId])
 }
 
 model DeletedSale {
   id             Int      @id @default(autoincrement())
-  originalSaleId Int      // Original Sale ID before deletion
+  tenantId Int @default(1)
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  originalSaleId Int // Original Sale ID before deletion
   invoiceNo      String
   customerName   String?
   cashierName    String?
   totalAmount    Float
-  itemsSnapshot  String   // JSON string of items
+  itemsSnapshot  String // JSON string of items
   deletedAt      DateTime @default(now())
-  deletedById    Int      // Admin who deleted it
+  deletedById    Int // Admin who deleted it
 }

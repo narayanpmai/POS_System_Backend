@@ -6,25 +6,47 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Enable CORS for frontend connectivity
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  const origins = [
+  // Enable CORS for frontend connectivity (multi-tenant: allow all subdomains + explicit allowlist)
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'koshelighar.com';
+  const envOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    : [];
+  
+  const explicitOrigins = [
+    ...envOrigins,
+    process.env.FRONTEND_URL,
     'http://localhost:3000',
     'https://koselighar.smartptrm.com',
     'http://koselighar.smartptrm.com',
-  ];
-
-  if (frontendUrl) {
-    const customOrigins = frontendUrl.split(',').map((url) => url.trim());
-    customOrigins.forEach((origin) => {
-      if (origin && !origins.includes(origin)) {
-        origins.push(origin);
-      }
-    });
-  }
+  ].filter(Boolean);
 
   app.enableCors({
-    origin: origins,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      // Allow explicit origins
+      if (explicitOrigins.includes(origin)) return callback(null, true);
+      // Allow localhost:3000 and any subdomain of localhost
+      if (origin === 'http://localhost:3000' || /^http:\/\/[a-z0-9-]+\.localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      
+      // Allow known domains and their subdomains
+      const allowedDomains = [rootDomain, 'koshelighar.com', 'koselighar.com', 'smartptrm.com', 'deeyosoft.com'];
+      
+      // Check if origin matches any of the allowed domains or their subdomains
+      const matchesAllowed = allowedDomains.some(domain => {
+        return origin === `https://${domain}` || 
+               origin === `http://${domain}` || 
+               origin.endsWith(`.${domain}`);
+      });
+
+      if (matchesAllowed) {
+        return callback(null, true);
+      }
+
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
