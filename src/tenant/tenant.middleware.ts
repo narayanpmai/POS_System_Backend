@@ -10,8 +10,28 @@ export class TenantMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction) {
     const tenantIdHeader = req.headers['x-tenant-id'];
     const tenantDomainHeader = req.headers['x-tenant-domain'];
-    // Remove port from host if present (e.g. shop1.localhost:3000 -> shop1.localhost)
-    const rawHost = (tenantDomainHeader as string) || req.headers.host || '';
+    const originHeader = req.headers.origin as string;
+    const refererHeader = req.headers.referer as string;
+
+    // Resolve domain/host to parse the tenant
+    let rawHost = (tenantDomainHeader as string) || req.headers.host || '';
+
+    // If host is the API gateway domain, fall back to Origin or Referer (which represent the frontend URL)
+    const apiDomains = ['koseligharapi.deeyosoft.com', 'localhost:5000', '127.0.0.1:5000'];
+    const isApiHost = apiDomains.some(apiDom => rawHost.includes(apiDom));
+
+    if (isApiHost || !rawHost) {
+      const sourceUrl = originHeader || refererHeader || '';
+      if (sourceUrl) {
+        try {
+          const parsedUrl = new URL(sourceUrl);
+          rawHost = parsedUrl.host;
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+    }
+
     const host = rawHost.split(':')[0]; // strip port
 
     console.log('[TenantMiddleware] rawHost:', rawHost, '| host:', host, '| tenantDomainHeader:', tenantDomainHeader);
