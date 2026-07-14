@@ -120,8 +120,15 @@ jobs:
           nvm use --lts
 
           cd "$HOME/koselighar-backend-dev"
+          
+          echo "Ensuring default tenant exists before schema push..."
+          node -e "const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { try { await prisma.\$executeRawUnsafe('INSERT INTO \"Tenant\" (id, name, \"isActive\", \"createdAt\", \"updatedAt\") VALUES (1, \'Default Tenant\', true, NOW(), NOW()) ON CONFLICT (id) DO NOTHING;'); console.log('Default tenant ensured.'); } catch (e) { console.log('Skipping tenant creation:', e.message); } } main().finally(() => prisma.\$disconnect());" || echo "Tenant check skipped"
+
           echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
+
+          echo "Seeding Koseli Ghar tenant, roles and admin user..."
+          node seed-koselighar.js || echo "Seed already up to date"
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
@@ -154,18 +161,6 @@ jobs:
 
           cd "$HOME/koselighar-backend-dev"
 
-<<<<<<< HEAD
-=======
-          echo "Ensuring default tenant exists before schema push..."
-          node -e "const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { try { await prisma.\$executeRawUnsafe('INSERT INTO \"Tenant\" (id, name, \"isActive\", \"createdAt\", \"updatedAt\") VALUES (1, \'Default Tenant\', true, NOW(), NOW()) ON CONFLICT (id) DO NOTHING;'); console.log('Default tenant ensured.'); } catch (e) { console.log('Skipping tenant creation:', e.message); } } main().finally(() => prisma.\$disconnect());" || echo "Tenant check skipped"
-
-          echo "Pushing database schema changes..."
-          npx prisma db push --accept-data-loss
-
-          echo "Seeding Koseli Ghar tenant, roles and admin user..."
-          node seed-koselighar.js || echo "Seed already up to date"
-
->>>>>>> 2f00e00c5a9c334626a59a78aa93b70d6f389ce7
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
             pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
           else
