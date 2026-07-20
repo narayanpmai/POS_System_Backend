@@ -20,5 +20,24 @@ module.exports = {
       out_file: "/home/beingonam/.pm2/logs/koselighar-dev-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",
     },
+    {
+      name: "koselighar-prod",
+      script: "dist/src/main.js",
+      cwd: __dirname,
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      autorestart: true,
+      max_memory_restart: "1G",
+
+      env: {
+        NODE_ENV: "production",
+        APP_ENV: "production",
+      },
+
+      error_file: "/home/beingonam/.pm2/logs/koselighar-prod-error.log",
+      out_file: "/home/beingonam/.pm2/logs/koselighar-prod-out.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+    },
   ],
 };
