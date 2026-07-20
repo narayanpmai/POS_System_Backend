@@ -154,7 +154,7 @@ jobs:
       - name: Ensure uploads folder exists (dev)
         shell: bash
         run: |
-          UPLOAD_DIR="/home/storage/koselighar"
+          UPLOAD_DIR="$HOME/storage/koselighar"
           mkdir -p "$UPLOAD_DIR"
           chmod -R 775 "$UPLOAD_DIR"
           echo "Uploads dir:"
