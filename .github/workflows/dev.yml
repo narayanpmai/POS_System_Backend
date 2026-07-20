@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - dev
+      - master
+      - main
   pull_request:
     branches:
       - dev
+      - master
+      - main
   workflow_dispatch:
 
 jobs:
@@ -129,7 +133,7 @@ jobs:
           npx prisma db push --accept-data-loss
 
           echo "Seeding Koseli Ghar tenant, roles and admin user..."
-          npm run prisma:seed || npx -y tsx prisma/seed.ts || echo "Seed already up to date"
+          node seed.js || npm run prisma:seed || echo "Seed already up to date"
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
