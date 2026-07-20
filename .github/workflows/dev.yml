@@ -35,11 +35,12 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
+          set -e
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          npm install
+          npm install --include=dev
           chmod -R +x node_modules/.bin || true
 
       - name: Generate Prisma client
@@ -47,6 +48,7 @@ jobs:
         env:
           DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
         run: |
+          set -e
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
@@ -71,18 +73,19 @@ jobs:
           nvm use --lts
 
           echo "Starting build..."
-          npx nest build
+          ./node_modules/.bin/nest build
           echo "Build completed"
 
       - name: Verify build output
         shell: bash
         run: |
-          if [ ! -f "dist/src/main.js" ]; then
-            echo "ERROR: dist/src/main.js not found!"
+          set -e
+          if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
+            echo "❌ ERROR: dist/src/main.js not found!"
             ls -lah dist/ || echo "dist folder not found"
             exit 1
           fi
-          echo "✓ Build successful"
+          echo "✓ Production build verified"
           ls -lh dist/src/main.js
 
       - name: Run tests
