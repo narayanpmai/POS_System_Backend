@@ -40,7 +40,7 @@ jobs:
           nvm use --lts
 
           npm install
-          chmod +x node_modules/.bin/nest
+          chmod -R +x node_modules/.bin || true
 
       - name: Generate Prisma client
         shell: bash
@@ -65,12 +65,13 @@ jobs:
       - name: Build project
         shell: bash
         run: |
+          set -e
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
           echo "Starting build..."
-          npm run build
+          npx nest build
           echo "Build completed"
 
       - name: Verify build output
