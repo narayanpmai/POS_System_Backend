@@ -110,13 +110,17 @@ jobs:
           rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_DIR"/
           echo "✓ Files copied to deployment directory"
 
-      - name: Copy dev env file to deployment directory
+      - name: Copy env file to deployment directory
         shell: bash
         run: |
-          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env.production"
-          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
-          chmod 644 "$HOME/koselighar-backend/.env.production" "$HOME/koselighar-backend/.env"
-          echo "✓ env files copied"
+          if [ -f "/home/envs/koselighar/.env.production" ]; then
+            cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
+            echo "✓ .env.production copied"
+          else
+            echo "⚠️ .env.production not found, falling back to .env.development"
+            cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend/.env"
+          fi
+          chmod 644 "$HOME/koselighar-backend/.env"
 
       - name: Push database schema changes (dev)
         shell: bash
