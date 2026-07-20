@@ -12,7 +12,8 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findFirst({ where: { email: dto.email },
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
       include: { role: true },
     });
 
@@ -29,7 +30,7 @@ export class AuthService {
       throw new UnauthorizedException('Your account has been deactivated');
     }
 
-    const payload = { email: user.email, sub: user.id, role: user.role.name };
+    const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
     const { password, ...userWithoutPassword } = user;
 
     return {
@@ -39,7 +40,8 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const exists = await this.prisma.user.findFirst({ where: { email: dto.email },
+    const exists = await this.prisma.user.findUnique({
+      where: { email: dto.email },
     });
 
     if (exists) {
@@ -72,7 +74,7 @@ export class AuthService {
       include: { role: true },
     });
 
-    const payload = { email: user.email, sub: user.id, role: user.role.name };
+    const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
     const { password, ...userWithoutPassword } = user;
 
     return {
@@ -82,7 +84,9 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findFirst({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
     if (!user) {
       // Don't leak existence in production, just return success
       return { message: 'If this email exists, a password reset link has been sent' };

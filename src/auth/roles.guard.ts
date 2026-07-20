@@ -18,6 +18,9 @@ export class RolesGuard implements CanActivate {
     if (!user || !user.role) {
       return false;
     }
+    if (user.role.name === 'Super Admin') {
+      return true;
+    }
     return requiredRoles.includes(user.role.name);
   }
 }

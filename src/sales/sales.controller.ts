@@ -27,14 +27,16 @@ export class SalesController {
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Format YYYY-MM-DD' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format YYYY-MM-DD' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
   findAllSales(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
-    return this.salesService.findAllSales({ page, limit, search, startDate, endDate });
+    return this.salesService.findAllSales({ page, limit, search, startDate, endDate, categoryId });
   }
 
   @Get('deleted')

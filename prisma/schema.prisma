@@ -7,17 +7,18 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Tenant {
-  id           Int      @id @default(autoincrement())
-  name         String
-  subdomain    String?  @unique
-  customDomain String?  @unique
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  logo      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   users                 User[]
-  roles                 Role[]
   customers             Customer[]
   suppliers             Supplier[]
   categories            Category[]
@@ -35,15 +36,17 @@ model Tenant {
   incomes               Income[]
   incomeCategories      IncomeCategory[]
   deletedSales          DeletedSale[]
-  purchaseItems         PurchaseItem[]
-  saleItems             SaleItem[]
+  membershipTiers       MembershipTier[]
+  rewardPointHistories  RewardPointHistory[]
+  accounts              Account[]
+  journalEntries        JournalEntry[]
+  purchaseReturns       PurchaseReturn[]
+  PaymentTransaction    PaymentTransaction[]
 }
 
 model User {
   id                    Int                    @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
-  email                 String
+  email                 String                 @unique
   password              String
   name                  String
   roleId                Int
@@ -56,41 +59,40 @@ model User {
   activityLogs          ActivityLog[]
   inventoryTransactions InventoryTransaction[]
   purchases             Purchase[]
-
-  @@unique([email, tenantId])
+  companyId             Int                    @default(1)
+  company               Company                @relation(fields: [companyId], references: [id])
 }
 
 model Role {
   id          Int     @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant  @relation(fields: [tenantId], references: [id])
-  name        String // e.g. "Admin", "Cashier"
+  name        String  @unique // e.g. "Admin", "Cashier"
   description String?
   users       User[]
-
-  @@unique([name, tenantId])
 }
 
 model Customer {
-  id        Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  name      String
-  email     String?
-  phone     String?
-  address   String?
-  points    Int      @default(0) // Loyalty points
-  sales     Sale[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   Int                  @id @default(autoincrement())
+  name                 String
+  email                String?
+  phone                String?
+  address              String?
+  points               Int                  @default(0) // Loyalty points
+  sales                Sale[]
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  walletBalance        Float                @default(0)
+  membershipTierId     Int?
+  membershipTier       MembershipTier?      @relation(fields: [membershipTierId], references: [id])
+  rewardPointHistories RewardPointHistory[]
+  companyId            Int                  @default(1)
+  company              Company              @relation(fields: [companyId], references: [id])
 
-  @@unique([phone, tenantId])
+  @@unique([phone, companyId])
+  @@unique([email, companyId])
 }
 
 model Supplier {
   id                    Int                    @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   name                  String
   contactName           String?
   email                 String?
@@ -100,25 +102,26 @@ model Supplier {
   updatedAt             DateTime               @updatedAt
   inventoryTransactions InventoryTransaction[]
   purchases             Purchase[]
+  purchaseReturns       PurchaseReturn[]
+  companyId             Int                    @default(1)
+  company               Company                @relation(fields: [companyId], references: [id])
 }
 
 model Category {
   id          Int       @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   name        String
   description String?
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  companyId   Int       @default(1)
+  company     Company   @relation(fields: [companyId], references: [id])
 
-  @@unique([name, tenantId])
+  @@unique([name, companyId])
 }
 
 model Product {
   id                    Int                    @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   name                  String
   SKU                   String
   barcode               String?
@@ -139,49 +142,50 @@ model Product {
   saleItems             SaleItem[]
   inventoryTransactions InventoryTransaction[]
   purchaseItems         PurchaseItem[]
+  companyId             Int                    @default(1)
+  company               Company                @relation(fields: [companyId], references: [id])
 
-  @@unique([SKU, tenantId])
-  @@unique([barcode, tenantId])
+  @@unique([SKU, companyId])
+  @@unique([barcode, companyId])
 }
 
 model Brand {
   id        Int       @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
   name      String
   slug      String
   status    String    @default("ACTIVE") // ACTIVE, INACTIVE
   products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  companyId Int       @default(1)
+  company   Company   @relation(fields: [companyId], references: [id])
 
-  @@unique([name, tenantId])
-  @@unique([slug, tenantId])
+  @@unique([name, companyId])
+  @@unique([slug, companyId])
 }
 
 model Purchase {
-  id           Int            @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant       Tenant         @relation(fields: [tenantId], references: [id])
-  poNumber     String // e.g., "PO-2026-0001"
-  supplierId   Int?
-  supplier     Supplier?      @relation(fields: [supplierId], references: [id])
-  status       String         @default("RECEIVED") // PENDING, RECEIVED
-  totalAmount  Float
-  purchaseDate DateTime       @default(now()) // Purchase Date
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  items        PurchaseItem[]
-  userId       Int // Who created it
-  user         User           @relation(fields: [userId], references: [id])
+  id              Int              @id @default(autoincrement())
+  poNumber        String // e.g., "PO-2026-0001"
+  supplierId      Int?
+  supplier        Supplier?        @relation(fields: [supplierId], references: [id])
+  status          String           @default("RECEIVED") // PENDING, RECEIVED
+  totalAmount     Float
+  purchaseDate    DateTime         @default(now()) // Purchase Date
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  items           PurchaseItem[]
+  userId          Int // Who created it
+  user            User             @relation(fields: [userId], references: [id])
+  purchaseReturns PurchaseReturn[]
+  companyId       Int              @default(1)
+  company         Company          @relation(fields: [companyId], references: [id])
 
-  @@unique([poNumber, tenantId])
+  @@unique([poNumber, companyId])
 }
 
 model PurchaseItem {
   id              Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
   purchaseId      Int
   purchase        Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   productId       Int
@@ -194,8 +198,6 @@ model PurchaseItem {
 
 model InventoryTransaction {
   id         Int       @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   productId  Int
   product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   type       String // "STOCK_IN", "STOCK_OUT"
@@ -206,33 +208,34 @@ model InventoryTransaction {
   userId     Int
   user       User      @relation(fields: [userId], references: [id])
   createdAt  DateTime  @default(now())
+  companyId  Int       @default(1)
+  company    Company   @relation(fields: [companyId], references: [id])
 }
 
 model Sale {
-  id             Int        @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant         Tenant     @relation(fields: [tenantId], references: [id])
-  invoiceNo      String // e.g. "INV-2026-0001"
-  customerId     Int?
-  customer       Customer?  @relation(fields: [customerId], references: [id])
-  cashierId      Int
-  cashier        User       @relation(fields: [cashierId], references: [id])
-  subtotal       Float
-  taxAmount      Float
-  discountAmount Float
-  totalAmount    Float
-  paymentMethod  String // "CASH", "CARD", "QR"
-  paymentStatus  String // "PAID", "PARTIAL", "UNPAID"
-  items          SaleItem[]
-  createdAt      DateTime   @default(now())
+  id                 Int                 @id @default(autoincrement())
+  invoiceNo          String // e.g. "INV-2026-0001"
+  customerId         Int?
+  customer           Customer?           @relation(fields: [customerId], references: [id])
+  cashierId          Int
+  cashier            User                @relation(fields: [cashierId], references: [id])
+  subtotal           Float
+  taxAmount          Float
+  discountAmount     Float
+  totalAmount        Float
+  paymentMethod      String // "CASH", "CARD", "QR"
+  paymentStatus      String // "PAID", "PARTIAL", "UNPAID"
+  items              SaleItem[]
+  createdAt          DateTime            @default(now())
+  companyId          Int                 @default(1)
+  company            Company             @relation(fields: [companyId], references: [id])
+  PaymentTransaction PaymentTransaction?
 
-  @@unique([invoiceNo, tenantId])
+  @@unique([invoiceNo, companyId])
 }
 
 model SaleItem {
   id        Int     @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant    Tenant  @relation(fields: [tenantId], references: [id])
   saleId    Int
   sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   productId Int
@@ -246,8 +249,6 @@ model SaleItem {
 
 model Shift {
   id         Int       @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant     Tenant    @relation(fields: [tenantId], references: [id])
   employeeId Int
   employee   User      @relation(fields: [employeeId], references: [id])
   startTime  DateTime  @default(now())
@@ -256,23 +257,23 @@ model Shift {
   cashEnd    Float?
   status     String    @default("OPEN") // "OPEN", "CLOSED"
   createdAt  DateTime  @default(now())
+  companyId  Int       @default(1)
+  company    Company   @relation(fields: [companyId], references: [id])
 }
 
 model ActivityLog {
   id        Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action    String // e.g. "DELETE_PRODUCT", "MANUAL_STOCK_ADJUST"
   details   String?
   timestamp DateTime @default(now())
+  companyId Int      @default(1)
+  company   Company  @relation(fields: [companyId], references: [id])
 }
 
 model Expense {
   id          Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   referenceNo String?
   category    String // "OPERATIONAL", "CAPITAL", "UNEXPECTED", or custom categories
   amount      Float
@@ -280,55 +281,51 @@ model Expense {
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  companyId   Int      @default(1)
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model StoreSetting {
   id             Int      @id @default(autoincrement())
-  tenantId Int @default(1) @unique
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
   storeName      String   @default("SmartPOS Retail")
   address        String   @default("123 Business St, Tech City")
   phone          String   @default("+1 555-0199")
   email          String   @default("info@smartpos.com")
   taxNumber      String   @default("TAX-987654321")
-  currencySymbol String   @default("$")
+  currencySymbol String   @default("Rs.")
   receiptHeader  String   @default("Thank you for shopping with us!")
   receiptFooter  String   @default("Please come again! Power by SmartPOS.")
   taxRateDefault Float    @default(13.0)
   invoicePrefix  String   @default("PTRM")
   updatedAt      DateTime @updatedAt
+  companyId      Int      @default(1)
+  company        Company  @relation(fields: [companyId], references: [id])
 }
 
 model ExpenseCategory {
   id          Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  name        String
+  name        String   @unique
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@unique([name, tenantId])
+  companyId   Int      @default(1)
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model FiscalYear {
   id        Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  name      String // e.g. "2080/081"
+  name      String   @unique // e.g. "2080/081"
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([name, tenantId])
+  companyId Int      @default(1)
+  company   Company  @relation(fields: [companyId], references: [id])
 }
 
 model Income {
   id          Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   referenceNo String?
   category    String // "EXPORT_FEE", "SERVICE_CHARGE", "OTHER" or custom
   amount      Float
@@ -336,24 +333,22 @@ model Income {
   date        DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  companyId   Int      @default(1)
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model IncomeCategory {
   id          Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  name        String
+  name        String   @unique
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@unique([name, tenantId])
+  companyId   Int      @default(1)
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model DeletedSale {
   id             Int      @id @default(autoincrement())
-  tenantId Int @default(1)
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
   originalSaleId Int // Original Sale ID before deletion
   invoiceNo      String
   customerName   String?
@@ -362,4 +357,107 @@ model DeletedSale {
   itemsSnapshot  String // JSON string of items
   deletedAt      DateTime @default(now())
   deletedById    Int // Admin who deleted it
+  companyId      Int      @default(1)
+  company        Company  @relation(fields: [companyId], references: [id])
+}
+
+// =========================
+// CRM MODULE
+// =========================
+
+model MembershipTier {
+  id              Int        @id @default(autoincrement())
+  name            String
+  minPoints       Int        @default(0)
+  discountPercent Float      @default(0)
+  customers       Customer[]
+  companyId       Int        @default(1)
+  company         Company    @relation(fields: [companyId], references: [id])
+}
+
+model RewardPointHistory {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  points     Int // Can be negative if spent
+  reason     String? // e.g., "Earned from Sale", "Spent on Purchase"
+  createdAt  DateTime @default(now())
+  companyId  Int      @default(1)
+  company    Company  @relation(fields: [companyId], references: [id])
+}
+
+// =========================
+// ACCOUNTING MODULE
+// =========================
+
+model Account {
+  id          Int     @id @default(autoincrement())
+  code        String // e.g. "1000", "2000"
+  name        String // e.g. "Cash", "Accounts Receivable"
+  type        String // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  balance     Float   @default(0) // Running balance (optional, usually calculated)
+  description String?
+
+  journalLines JournalEntryLine[]
+  companyId    Int                @default(1)
+  company      Company            @relation(fields: [companyId], references: [id])
+}
+
+model JournalEntry {
+  id          Int      @id @default(autoincrement())
+  referenceNo String? // e.g. "INV-001", "PO-002"
+  description String
+  date        DateTime @default(now())
+
+  lines     JournalEntryLine[]
+  companyId Int                @default(1)
+  company   Company            @relation(fields: [companyId], references: [id])
+}
+
+model JournalEntryLine {
+  id             Int          @id @default(autoincrement())
+  journalEntryId Int
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      Int
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Float        @default(0)
+  credit         Float        @default(0)
+  description    String?
+}
+
+// =========================
+// PURCHASE ENHANCEMENTS
+// =========================
+
+model PurchaseReturn {
+  id          Int      @id @default(autoincrement())
+  returnNo    String   @unique
+  purchaseId  Int
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  supplierId  Int
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  reason      String?
+  totalAmount Float
+  returnDate  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  companyId   Int      @default(1)
+  company     Company  @relation(fields: [companyId], references: [id])
+}
+
+// =========================
+// PAYMENT GATEWAY MODULE
+// =========================
+
+model PaymentTransaction {
+  id             Int      @id @default(autoincrement())
+  saleId         Int?     @unique
+  sale           Sale?    @relation(fields: [saleId], references: [id])
+  provider       String // "STRIPE", "ESEWA", "KHALTI"
+  transactionRef String   @unique // External gateway reference ID
+  amount         Float
+  status         String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  paymentDate    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  companyId      Int      @default(1)
+  company        Company  @relation(fields: [companyId], references: [id])
 }

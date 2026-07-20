@@ -11,7 +11,8 @@ export class ProductsService {
   // ==========================================
 
   async createCategory(dto: CreateCategoryDto) {
-    const exists = await this.prisma.category.findFirst({ where: { name: dto.name },
+    const exists = await this.prisma.category.findUnique({
+      where: { name_companyId: { name: dto.name, companyId: 1 } },
     });
     if (exists) {
       throw new BadRequestException('Category name already exists');
@@ -77,13 +78,15 @@ export class ProductsService {
     if (!category) throw new NotFoundException('Selected category does not exist');
 
     // Check unique SKU
-    const skuExists = await this.prisma.product.findFirst({ where: { SKU: dto.SKU },
+    const skuExists = await this.prisma.product.findUnique({
+      where: { SKU_companyId: { SKU: dto.SKU, companyId: 1 } },
     });
     if (skuExists) throw new BadRequestException('SKU must be unique');
 
     // Check unique barcode
     if (dto.barcode) {
-      const barcodeExists = await this.prisma.product.findFirst({ where: { barcode: dto.barcode },
+      const barcodeExists = await this.prisma.product.findUnique({
+        where: { barcode_companyId: { barcode: dto.barcode, companyId: 1 } },
       });
       if (barcodeExists) throw new BadRequestException('Barcode must be unique');
     }
@@ -172,8 +175,8 @@ export class ProductsService {
   }
 
   async findProductByBarcode(barcode: string) {
-    const product = await this.prisma.product.findFirst({
-      where: { barcode },
+    const product = await this.prisma.product.findUnique({
+      where: { barcode_companyId: { barcode, companyId: 1 } },
       include: { category: true },
     });
     if (!product) throw new NotFoundException(`Product with barcode ${barcode} not found`);
@@ -191,13 +194,15 @@ export class ProductsService {
     }
 
     if (dto.SKU && dto.SKU !== current.SKU) {
-      const skuExists = await this.prisma.product.findFirst({ where: { SKU: dto.SKU },
+      const skuExists = await this.prisma.product.findUnique({
+        where: { SKU_companyId: { SKU: dto.SKU, companyId: 1 } },
       });
       if (skuExists) throw new BadRequestException('SKU must be unique');
     }
 
     if (dto.barcode && dto.barcode !== current.barcode) {
-      const barcodeExists = await this.prisma.product.findFirst({ where: { barcode: dto.barcode },
+      const barcodeExists = await this.prisma.product.findUnique({
+        where: { barcode_companyId: { barcode: dto.barcode, companyId: 1 } },
       });
       if (barcodeExists) throw new BadRequestException('Barcode must be unique');
     }

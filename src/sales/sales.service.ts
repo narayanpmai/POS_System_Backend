@@ -19,7 +19,7 @@ export class SalesService {
     const inventoryLogs = [];
 
     // Retrieve default tax configuration if needed
-    const settings = await this.prisma.storeSetting.findUnique({ where: { id: 1 } });
+    const settings = await this.prisma.storeSetting.findFirst();
     const defaultTaxRate = settings?.taxRateDefault || 0.0;
 
     for (const itemDto of dto.items) {
@@ -42,7 +42,8 @@ export class SalesService {
       const itemSubtotal = itemPrice * itemDto.quantity;
       
       // Calculate tax for this item based on product specific tax rate
-      const taxRateToApply = product.taxRate !== undefined ? product.taxRate : defaultTaxRate;
+      // Only apply tax if global tax is set > 0. Use product tax if available, else global tax.
+      const taxRateToApply = defaultTaxRate > 0 ? (product.taxRate || defaultTaxRate) : 0;
       const itemTax = itemSubtotal * (taxRateToApply / 100);
       const itemTotal = itemSubtotal + itemTax;
 
@@ -147,9 +148,46 @@ export class SalesService {
               points: {
                 increment: pointsEarned,
               },
+              rewardPointHistories: {
+                create: {
+                  points: pointsEarned,
+                  reason: `Earned from Sale Invoice ${invoiceNo}`
+                }
+              }
             },
           });
         }
+      }
+
+      // Accounting: Generate Journal Entry
+      // 1. Fetch Accounts
+      const accounts = await tx.account.findMany();
+      const getAccId = (code: string) => accounts.find(a => a.code === code)?.id;
+
+      const cashAcc = getAccId('1000');
+      const salesRevAcc = getAccId('4000');
+      const inventoryAcc = getAccId('1300');
+      const cogsAcc = getAccId('5000');
+      const taxAcc = getAccId('2100');
+
+      if (cashAcc && salesRevAcc && inventoryAcc && cogsAcc) {
+        const totalCost = itemsToCreate.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+        
+        await tx.journalEntry.create({
+          data: {
+            referenceNo: invoiceNo,
+            description: `POS Sale - ${invoiceNo}`,
+            lines: {
+              create: [
+                { accountId: cashAcc, debit: totalAmount, credit: 0, description: 'Cash Received' },
+                { accountId: salesRevAcc, debit: 0, credit: Number((subtotal - discountAmount).toFixed(2)), description: 'Sales Revenue' },
+                ...(taxAmount > 0 && taxAcc ? [{ accountId: taxAcc, debit: 0, credit: taxAmount, description: 'Sales Tax Payable' }] : []),
+                { accountId: cogsAcc, debit: totalCost, credit: 0, description: 'Cost of Goods Sold' },
+                { accountId: inventoryAcc, debit: 0, credit: totalCost, description: 'Inventory Reduction' },
+              ]
+            }
+          }
+        });
       }
 
       return sale;
@@ -162,6 +200,7 @@ export class SalesService {
     search?: string;
     startDate?: string;
     endDate?: string;
+    categoryId?: string;
   }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, query.limit || 10);
@@ -198,7 +237,18 @@ export class SalesService {
       }
     }
 
-    const [items, total] = await Promise.all([
+    if (query.categoryId) {
+      const catId = parseInt(query.categoryId, 10);
+      if (!isNaN(catId)) {
+        where.items = {
+          some: {
+            product: { categoryId: catId }
+          }
+        };
+      }
+    }
+
+    const [items, total, aggregate] = await Promise.all([
       this.prisma.sale.findMany({
         where,
         include: {
@@ -211,6 +261,7 @@ export class SalesService {
         take: limit,
       }),
       this.prisma.sale.count({ where }),
+      this.prisma.sale.aggregate({ where, _sum: { totalAmount: true } }),
     ]);
 
     return {
@@ -219,6 +270,7 @@ export class SalesService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      totalSalesAmount: aggregate._sum.totalAmount || 0,
     };
   }
 

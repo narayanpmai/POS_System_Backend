@@ -1,5 +1,6 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TenantMiddleware } from './auth/tenant.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -16,8 +17,11 @@ import { ExpenseCategoriesModule } from './expense-categories/expense-categories
 import { FiscalYearsModule } from './fiscal-years/fiscal-years.module';
 import { IncomesModule } from './incomes/incomes.module';
 import { IncomeCategoriesModule } from './income-categories/income-categories.module';
-import { TenantMiddleware } from './tenant/tenant.middleware';
-
+import { CompaniesModule } from './companies/companies.module';
+import { AccountingModule } from './accounting/accounting.module';
+import { CrmModule } from './crm/crm.module';
+import { AiModule } from './ai/ai.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -41,6 +45,11 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     FiscalYearsModule,
     IncomesModule,
     IncomeCategoriesModule,
+    CompaniesModule,
+    AccountingModule,
+    CrmModule,
+    AiModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [],

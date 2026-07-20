@@ -19,7 +19,7 @@ export class FiscalYearsService {
   }
 
   async create(createDto: CreateFiscalYearDto) {
-    const existing = await this.prisma.fiscalYear.findFirst({ where: { name: createDto.name } });
+    const existing = await this.prisma.fiscalYear.findUnique({ where: { name: createDto.name } });
     if (existing) throw new BadRequestException('Fiscal Year name already exists');
 
     if (createDto.isActive) {

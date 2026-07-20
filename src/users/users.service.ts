@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
@@ -6,8 +6,13 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(reqUser: any) {
+    let where: any = {};
+    if (reqUser.role.name !== 'Super Admin') {
+      where.companyId = reqUser.companyId;
+    }
     const users = await this.prisma.user.findMany({
+      where,
       include: { role: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -18,105 +23,95 @@ export class UsersService {
     });
   }
 
-  async getRoles() {
-    return this.prisma.role.findMany();
+  async getRoles(reqUser: any) {
+    let where: any = {};
+    if (reqUser.role.name !== 'Super Admin') {
+      where.name = { not: 'Super Admin' };
+    }
+    return this.prisma.role.findMany({ where });
   }
 
-  async create(data: any) {
-    // Validate required fields
-    if (!data.name || !data.email || !data.password) {
-      throw new BadRequestException('Name, email, and password are required');
-    }
-    if (!data.roleId) {
-      throw new BadRequestException('Role is required');
-    }
-
-    // Validate that the role exists
-    const role = await this.prisma.role.findUnique({ where: { id: Number(data.roleId) } });
-    if (!role) {
-      throw new BadRequestException(`Role with ID ${data.roleId} does not exist. Please select a valid role.`);
-    }
-
-    // Check if email is already in use
-    const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
+  async create(reqUser: any, data: any) {
+    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
     if (existing) {
       throw new BadRequestException('Email already in use');
     }
 
-    try {
-      const hashedPassword = await bcrypt.hash(data.password, 10);
-      const user = await this.prisma.user.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          password: hashedPassword,
-          roleId: Number(data.roleId),
-          active: data.active ?? true,
-        },
-        include: { role: true }
-      });
-      
-      const { password, ...rest } = user;
-      return rest;
-    } catch (err: any) {
-      if (err.code === 'P2003') {
-        throw new BadRequestException('Invalid role selected. Please choose a valid role.');
-      }
-      if (err.code === 'P2002') {
-        throw new BadRequestException('A user with this email already exists.');
-      }
-      throw new InternalServerErrorException('Failed to create user: ' + (err.message || 'Unknown error'));
+    const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
+    if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+      throw new BadRequestException('Only Super Admin can create a Super Admin');
     }
+
+    const companyId = (reqUser.role.name === 'Super Admin' && data.companyId) 
+      ? data.companyId 
+      : reqUser.companyId;
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const user = await this.prisma.user.create({
+      data: {
+        name: data.name,
+        email: data.email,
+        password: hashedPassword,
+        roleId: data.roleId,
+        active: data.active ?? true,
+        companyId,
+      },
+      include: { role: true }
+    });
+    
+    const { password, ...rest } = user;
+    return rest;
   }
 
-  async update(id: number, data: any) {
+  async update(reqUser: any, id: number, data: any) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User not found');
 
-    if (data.email && data.email !== user.email) {
-      const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
-      if (existing) throw new BadRequestException('Email already in use');
+    if (reqUser.role.name !== 'Super Admin' && user.companyId !== reqUser.companyId) {
+      throw new BadRequestException('Cannot update user from another company');
     }
 
-    // Validate roleId if provided
     if (data.roleId) {
-      const role = await this.prisma.role.findUnique({ where: { id: Number(data.roleId) } });
-      if (!role) {
-        throw new BadRequestException(`Role with ID ${data.roleId} does not exist.`);
+      const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
+      if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+        throw new BadRequestException('Only Super Admin can assign Super Admin role');
       }
     }
 
-    const updateData: any = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.roleId !== undefined) updateData.roleId = Number(data.roleId);
-    if (data.active !== undefined) updateData.active = data.active;
+    if (data.email && data.email !== user.email) {
+      const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+      if (existing) throw new BadRequestException('Email already in use');
+    }
+
+    const updateData: any = {
+      name: data.name,
+      email: data.email,
+      roleId: data.roleId,
+      active: data.active
+    };
 
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }
 
-    try {
-      const updated = await this.prisma.user.update({
-        where: { id },
-        data: updateData,
-        include: { role: true }
-      });
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: updateData,
+      include: { role: true }
+    });
 
-      const { password, ...rest } = updated;
-      return rest;
-    } catch (err: any) {
-      if (err.code === 'P2003') {
-        throw new BadRequestException('Invalid role selected.');
-      }
-      if (err.code === 'P2002') {
-        throw new BadRequestException('A user with this email already exists.');
-      }
-      throw new InternalServerErrorException('Failed to update user: ' + (err.message || 'Unknown error'));
-    }
+    const { password, ...rest } = updated;
+    return rest;
   }
 
-  async resetPassword(id: number, data: any) {
+  async resetPassword(reqUser: any, id: number, data: any) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    
+    if (reqUser.role.name !== 'Super Admin' && user.companyId !== reqUser.companyId) {
+      throw new BadRequestException('Cannot update user from another company');
+    }
+
     if (!data.newPassword) {
       throw new BadRequestException('New password is required');
     }
