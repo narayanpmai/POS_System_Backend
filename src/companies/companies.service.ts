@@ -43,13 +43,15 @@ export class CompaniesService {
       throw new BadRequestException('A user with this admin email already exists.');
     }
 
-    // Get Admin role
-    const adminRole = await this.prisma.role.findUnique({
+    // Get Admin role (upsert/create if missing)
+    let adminRole = await this.prisma.role.findUnique({
       where: { name: 'Admin' }
     });
 
     if (!adminRole) {
-      throw new BadRequestException('Admin role not found in the system');
+      adminRole = await this.prisma.role.create({
+        data: { name: 'Admin', description: 'Administrator privileges' }
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
