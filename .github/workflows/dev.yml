@@ -129,11 +129,14 @@ jobs:
 
           cd "$HOME/koselighar-backend-dev"
           
+          echo "Generating Prisma client in deployment directory..."
+          npx prisma generate
+
           echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
 
-          echo "Seeding Koseli Ghar tenant, roles and admin user..."
-          node seed.js || npm run prisma:seed || echo "Seed already up to date"
+          echo "Executing database seed.js..."
+          node seed.js
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
