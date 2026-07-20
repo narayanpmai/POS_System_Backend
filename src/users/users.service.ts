@@ -38,7 +38,10 @@ export class UsersService {
     }
 
     const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
-    if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+    if (!role) {
+      throw new BadRequestException('Invalid role selected');
+    }
+    if (role.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
       throw new BadRequestException('Only Super Admin can create a Super Admin');
     }
 
