@@ -71,7 +71,7 @@ async function main() {
 
   // Seed admin@pos.com
   const user1 = await prisma.user.upsert({
-    where: { email: 'admin@pos.com' },
+    where: { email_companyId: { email: 'admin@pos.com', companyId: company.id } },
     update: { password: adminPassword, active: true, roleId: superAdminRole.id, companyId: company.id },
     create: {
       email: 'admin@pos.com',
@@ -86,7 +86,7 @@ async function main() {
 
   // Seed admin@smartpos.com
   const user2 = await prisma.user.upsert({
-    where: { email: 'admin@smartpos.com' },
+    where: { email_companyId: { email: 'admin@smartpos.com', companyId: company.id } },
     update: { password: adminPassword, active: true, roleId: superAdminRole.id, companyId: company.id },
     create: {
       email: 'admin@smartpos.com',
@@ -101,7 +101,7 @@ async function main() {
 
   // Seed cashier@pos.com
   const user3 = await prisma.user.upsert({
-    where: { email: 'cashier@pos.com' },
+    where: { email_companyId: { email: 'cashier@pos.com', companyId: company.id } },
     update: { password: cashierPassword, active: true, roleId: cashierRole.id, companyId: company.id },
     create: {
       email: 'cashier@pos.com',
