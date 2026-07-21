@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { ExpenseCategoriesService } from './expense-categories.service';
 import { CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from './dto/expense-categories.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,31 +14,31 @@ export class ExpenseCategoriesController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new expense category' })
-  create(@Body() dto: CreateExpenseCategoryDto) {
-    return this.categoriesService.create(dto);
+  create(@Req() req: any, @Body() dto: CreateExpenseCategoryDto) {
+    return this.categoriesService.create(req.user, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all expense categories' })
-  findAll(@Query('search') search?: string) {
-    return this.categoriesService.findAll(search);
+  findAll(@Req() req: any, @Query('search') search?: string) {
+    return this.categoriesService.findAll(req.user, search);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific expense category' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.categoriesService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.categoriesService.findOne(req.user, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update expense category details' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateExpenseCategoryDto) {
-    return this.categoriesService.update(id, dto);
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateExpenseCategoryDto) {
+    return this.categoriesService.update(req.user, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete expense category' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.categoriesService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.categoriesService.remove(req.user, id);
   }
 }

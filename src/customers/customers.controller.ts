@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Req } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customers.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -15,8 +15,8 @@ export class CustomersController {
   @Post()
   @ApiOperation({ summary: 'Register a new customer' })
   @ApiResponse({ status: 201, description: 'Customer successfully created' })
-  create(@Body() dto: CreateCustomerDto) {
-    return this.customersService.create(dto);
+  create(@Req() req: any, @Body() dto: CreateCustomerDto) {
+    return this.customersService.create(req.user, dto);
   }
 
   @Get()
@@ -24,31 +24,31 @@ export class CustomersController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
-  findAll(@Query('page') page?: number, @Query('limit') limit?: number, @Query('search') search?: string) {
-    return this.customersService.findAll({ page, limit, search });
+  findAll(@Req() req: any, @Query('page') page?: number, @Query('limit') limit?: number, @Query('search') search?: string) {
+    return this.customersService.findAll(req.user, { page, limit, search });
   }
 
   @Get('phone/:phone')
   @ApiOperation({ summary: 'Lookup customer by telephone for POS' })
-  findByPhone(@Param('phone') phone: string) {
-    return this.customersService.findByPhone(phone);
+  findByPhone(@Req() req: any, @Param('phone') phone: string) {
+    return this.customersService.findByPhone(req.user, phone);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get customer profile and last purchases' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.customersService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.customersService.findOne(req.user, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update customer details' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
-    return this.customersService.update(id, dto);
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
+    return this.customersService.update(req.user, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove customer (No purchase history)' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.customersService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.customersService.remove(req.user, id);
   }
 }

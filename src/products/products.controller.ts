@@ -20,34 +20,34 @@ export class ProductsController {
   @Post('categories')
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product category (Admin Only)' })
-  createCategory(@Body() dto: CreateCategoryDto) {
-    return this.productsService.createCategory(dto);
+  createCategory(@Req() req: any, @Body() dto: CreateCategoryDto) {
+    return this.productsService.createCategory(req.user, dto);
   }
 
   @Get('categories')
   @ApiOperation({ summary: 'List all product categories' })
-  findAllCategories() {
-    return this.productsService.findAllCategories();
+  findAllCategories(@Req() req: any) {
+    return this.productsService.findAllCategories(req.user);
   }
 
   @Get('categories/:id')
   @ApiOperation({ summary: 'Get category details' })
-  findCategoryById(@Param('id', ParseIntPipe) id: number) {
-    return this.productsService.findCategoryById(id);
+  findCategoryById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.findCategoryById(req.user, id);
   }
 
   @Put('categories/:id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update category (Admin Only)' })
-  updateCategory(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
-    return this.productsService.updateCategory(id, dto);
+  updateCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
+    return this.productsService.updateCategory(req.user, id, dto);
   }
 
   @Delete('categories/:id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete category (Admin Only)' })
-  removeCategory(@Param('id', ParseIntPipe) id: number) {
-    return this.productsService.removeCategory(id);
+  removeCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.removeCategory(req.user, id);
   }
 
   // ==========================================
@@ -58,8 +58,7 @@ export class ProductsController {
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product (Admin Only)' })
   createProduct(@Body() dto: CreateProductDto, @Req() req: any) {
-    const userId = req.user.id;
-    return this.productsService.createProduct(dto, userId);
+    return this.productsService.createProduct(dto, req.user);
   }
 
   @Get()
@@ -70,39 +69,40 @@ export class ProductsController {
   @ApiQuery({ name: 'categoryId', required: false, type: Number })
   @ApiQuery({ name: 'lowStockOnly', required: false, type: Boolean })
   findAllProducts(
+    @Req() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: number,
     @Query('lowStockOnly') lowStockOnly?: boolean,
   ) {
-    return this.productsService.findAllProducts({ page, limit, search, categoryId, lowStockOnly });
+    return this.productsService.findAllProducts(req.user, { page, limit, search, categoryId, lowStockOnly });
   }
 
   @Get('barcode/:barcode')
   @ApiOperation({ summary: 'Find product by barcode scanner value' })
-  findProductByBarcode(@Param('barcode') barcode: string) {
-    return this.productsService.findProductByBarcode(barcode);
+  findProductByBarcode(@Req() req: any, @Param('barcode') barcode: string) {
+    return this.productsService.findProductByBarcode(req.user, barcode);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get product details' })
-  findProductById(@Param('id', ParseIntPipe) id: number) {
-    return this.productsService.findProductById(id);
+  findProductById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.findProductById(req.user, id);
   }
 
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update product properties (Admin Only)' })
-  updateProduct(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
-    return this.productsService.updateProduct(id, dto);
+  updateProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
+    return this.productsService.updateProduct(req.user, id, dto);
   }
 
   @Delete(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete product (Admin Only)' })
-  removeProduct(@Param('id', ParseIntPipe) id: number) {
-    return this.productsService.removeProduct(id);
+  removeProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.removeProduct(req.user, id);
   }
 
   @Patch(':id/stock')
@@ -115,7 +115,6 @@ export class ProductsController {
     @Body('reason') reason: string,
     @Req() req: any,
   ) {
-    const userId = req.user.id;
-    return this.productsService.updateStockManually(id, quantity, type, reason, userId);
+    return this.productsService.updateStockManually(id, quantity, type, reason, req.user);
   }
 }

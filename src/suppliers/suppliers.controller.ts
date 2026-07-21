@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { CreateSupplierDto, UpdateSupplierDto } from './dto/suppliers.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,8 +14,8 @@ export class SuppliersController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new supplier' })
-  create(@Body() dto: CreateSupplierDto) {
-    return this.suppliersService.create(dto);
+  create(@Req() req: any, @Body() dto: CreateSupplierDto) {
+    return this.suppliersService.create(req.user, dto);
   }
 
   @Get()
@@ -24,28 +24,29 @@ export class SuppliersController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   findAll(
+    @Req() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
   ) {
-    return this.suppliersService.findAll(search, page ? Number(page) : 1, limit ? Number(limit) : 100);
+    return this.suppliersService.findAll(req.user, search, page ? Number(page) : 1, limit ? Number(limit) : 100);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific supplier' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.suppliersService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.suppliersService.findOne(req.user, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update supplier details' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplierDto) {
-    return this.suppliersService.update(id, dto);
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplierDto) {
+    return this.suppliersService.update(req.user, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete supplier' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.suppliersService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.suppliersService.remove(req.user, id);
   }
 }

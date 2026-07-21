@@ -6,24 +6,26 @@ import { CreateCustomerDto, UpdateCustomerDto } from './dto/customers.dto';
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateCustomerDto) {
+  async create(user: any, dto: CreateCustomerDto) {
     if (dto.phone) {
       const exists = await this.prisma.customer.findUnique({
-        where: { phone_companyId: { phone: dto.phone, companyId: 1 } },
+        where: { phone_companyId: { phone: dto.phone, companyId: user.companyId } },
       });
       if (exists) {
         throw new BadRequestException('A customer with this phone number is already registered');
       }
     }
-    return this.prisma.customer.create({ data: dto });
+    return this.prisma.customer.create({ 
+      data: { ...dto, companyId: user.companyId } 
+    });
   }
 
-  async findAll(query: { page?: number; limit?: number; search?: string }) {
+  async findAll(user: any, query: { page?: number; limit?: number; search?: string }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { companyId: user.companyId };
 
     if (query.search) {
       where.OR = [
@@ -53,7 +55,7 @@ export class CustomersService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(user: any, id: number) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
       include: {
@@ -63,24 +65,24 @@ export class CustomersService {
         },
       },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer || customer.companyId !== user.companyId) throw new NotFoundException('Customer not found');
     return customer;
   }
 
-  async findByPhone(phone: string) {
+  async findByPhone(user: any, phone: string) {
     const customer = await this.prisma.customer.findUnique({
-      where: { phone_companyId: { phone, companyId: 1 } },
+      where: { phone_companyId: { phone, companyId: user.companyId } },
     });
-    if (!customer) throw new NotFoundException(`Customer with phone number ${phone} not found`);
+    if (!customer || customer.companyId !== user.companyId) throw new NotFoundException(`Customer with phone number ${phone} not found`);
     return customer;
   }
 
-  async update(id: number, dto: UpdateCustomerDto) {
-    const current = await this.findOne(id);
+  async update(user: any, id: number, dto: UpdateCustomerDto) {
+    const current = await this.findOne(user, id);
 
     if (dto.phone && dto.phone !== current.phone) {
       const exists = await this.prisma.customer.findUnique({
-        where: { phone_companyId: { phone: dto.phone, companyId: 1 } },
+        where: { phone_companyId: { phone: dto.phone, companyId: user.companyId } },
       });
       if (exists) {
         throw new BadRequestException('A customer with this phone number is already registered');
@@ -93,8 +95,8 @@ export class CustomersService {
     });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(user: any, id: number) {
+    await this.findOne(user, id);
     
     // Prevent delete if customer has sales records
     const salesCount = await this.prisma.sale.count({

@@ -6,11 +6,11 @@ import { CreateSupplierDto, UpdateSupplierDto } from './dto/suppliers.dto';
 export class SuppliersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateSupplierDto) {
+  async create(user: any, dto: CreateSupplierDto) {
     // Check phone uniqueness if provided
     if (dto.phone) {
       const existing = await this.prisma.supplier.findFirst({
-        where: { phone: dto.phone }
+        where: { phone: dto.phone, companyId: user.companyId }
       });
       if (existing) {
         throw new BadRequestException('A supplier with this phone number already exists');
@@ -21,14 +21,14 @@ export class SuppliersService {
       data: {
         name: dto.name,
         email: dto.email,
-        phone: dto.phone,
         address: dto.address,
+        companyId: user.companyId,
       }
     });
   }
 
-  async findAll(search?: string, page = 1, limit = 100) {
-    const where: any = {};
+  async findAll(user: any, search?: string, page = 1, limit = 100) {
+    const where: any = { companyId: user.companyId };
     if (search) {
       where.OR = [
         { name: { contains: search } },
@@ -57,19 +57,20 @@ export class SuppliersService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(user: any, id: number) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
-    if (!supplier) throw new NotFoundException('Supplier not found');
+    if (!supplier || supplier.companyId !== user.companyId) throw new NotFoundException('Supplier not found');
     return supplier;
   }
 
-  async update(id: number, dto: UpdateSupplierDto) {
-    await this.findOne(id);
+  async update(user: any, id: number, dto: UpdateSupplierDto) {
+    await this.findOne(user, id);
 
     if (dto.phone) {
       const existing = await this.prisma.supplier.findFirst({
         where: {
           phone: dto.phone,
+          companyId: user.companyId,
           id: { not: id }
         }
       });
@@ -84,8 +85,8 @@ export class SuppliersService {
     });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(user: any, id: number) {
+    await this.findOne(user, id);
     
     // Check if supplier is linked to any purchases or inventory transactions
     const linkedPurchases = await this.prisma.purchase.count({ where: { supplierId: id } });

@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PurchasesService {
   constructor(private prisma: PrismaService) {}
 
-  async createPurchase(data: any, userId: number) {
+  async createPurchase(user: any, data: any) {
     // Basic logic to create purchase
     const { poNumber, supplierId, totalAmount, purchaseDate, items } = data;
     
@@ -16,7 +16,8 @@ export class PurchasesService {
           supplierId: supplierId || null,
           totalAmount,
           purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
-          userId,
+          userId: user.id,
+          companyId: user.companyId,
           status: 'RECEIVED',
           items: {
             create: items.map(item => ({
@@ -49,7 +50,8 @@ export class PurchasesService {
             quantity: item.quantity,
             reason: `Purchase ${poNumber}`,
             supplierId: supplierId || null,
-            userId: userId,
+            userId: user.id,
+            companyId: user.companyId,
           }
         });
       }
@@ -58,7 +60,7 @@ export class PurchasesService {
     });
   }
 
-  async updatePurchase(id: number, data: any, userId: number) {
+  async updatePurchase(user: any, id: number, data: any) {
     const { poNumber, supplierId, totalAmount, purchaseDate, items } = data;
     
     return this.prisma.$transaction(async (tx) => {
@@ -68,7 +70,7 @@ export class PurchasesService {
         include: { items: true }
       });
 
-      if (!oldPurchase) throw new Error('Purchase not found');
+      if (!oldPurchase || oldPurchase.companyId !== user.companyId) throw new Error('Purchase not found');
 
       // 2. Reverse inventory for old items
       for (const oldItem of oldPurchase.items) {
@@ -84,7 +86,8 @@ export class PurchasesService {
             quantity: oldItem.quantity,
             reason: `Purchase Reversal/Edit ${oldPurchase.poNumber}`,
             supplierId: oldPurchase.supplierId || null,
-            userId: userId,
+            userId: user.id,
+            companyId: user.companyId,
           }
         });
       }
@@ -132,7 +135,8 @@ export class PurchasesService {
             quantity: item.quantity,
             reason: `Purchase Edit ${poNumber}`,
             supplierId: supplierId || null,
-            userId: userId,
+            userId: user.id,
+            companyId: user.companyId,
           }
         });
       }
@@ -141,9 +145,9 @@ export class PurchasesService {
     });
   }
 
-  async findAll() {
+  async findAll(user: any) {
     const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
-    const where: any = {};
+    const where: any = { companyId: user.companyId };
     if (activeFy) {
       where.purchaseDate = {
         gte: activeFy.startDate,

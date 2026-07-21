@@ -6,7 +6,7 @@ import { CreateExpenseDto, UpdateExpenseDto } from './dto/expenses.dto';
 export class ExpensesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateExpenseDto) {
+  async create(user: any, dto: CreateExpenseDto) {
     return this.prisma.expense.create({
       data: {
         referenceNo: dto.referenceNo,
@@ -14,12 +14,13 @@ export class ExpensesService {
         amount: dto.amount,
         description: dto.description,
         date: dto.date ? new Date(dto.date) : new Date(),
+        companyId: user.companyId,
       }
     });
   }
 
-  async findAll(search?: string, category?: string) {
-    const where: any = {};
+  async findAll(user: any, search?: string, category?: string) {
+    const where: any = { companyId: user.companyId };
     if (search) {
       where.OR = [
         { referenceNo: { contains: search } },
@@ -44,14 +45,14 @@ export class ExpensesService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(user: any, id: number) {
     const expense = await this.prisma.expense.findUnique({ where: { id } });
-    if (!expense) throw new NotFoundException('Expense not found');
+    if (!expense || expense.companyId !== user.companyId) throw new NotFoundException('Expense not found');
     return expense;
   }
 
-  async update(id: number, dto: UpdateExpenseDto) {
-    await this.findOne(id);
+  async update(user: any, id: number, dto: UpdateExpenseDto) {
+    await this.findOne(user, id);
     
     const data: any = { ...dto };
     if (dto.date) {
@@ -64,8 +65,8 @@ export class ExpensesService {
     });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(user: any, id: number) {
+    await this.findOne(user, id);
     return this.prisma.expense.delete({ where: { id } });
   }
 }

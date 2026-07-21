@@ -6,7 +6,7 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(reqUser: any) {
+  async findAll(reqUser: any, queriedCompanyId?: number) {
     let where: any = {
       role: {
         name: {
@@ -16,6 +16,8 @@ export class UsersService {
     };
     if (reqUser.role.name !== 'Super Admin') {
       where.companyId = reqUser.companyId;
+    } else if (queriedCompanyId) {
+      where.companyId = queriedCompanyId;
     }
     const users = await this.prisma.user.findMany({
       where,
