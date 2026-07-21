@@ -18,6 +18,8 @@ export class UsersService {
       where.companyId = reqUser.companyId;
     } else if (queriedCompanyId) {
       where.companyId = queriedCompanyId;
+    } else {
+      where.companyId = reqUser.companyId;
     }
     const users = await this.prisma.user.findMany({
       where,
