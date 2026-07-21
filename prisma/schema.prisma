@@ -46,7 +46,7 @@ model Company {
 
 model User {
   id                    Int                    @id @default(autoincrement())
-  email                 String                 @unique
+  email                 String
   password              String
   name                  String
   roleId                Int
@@ -61,6 +61,8 @@ model User {
   purchases             Purchase[]
   companyId             Int                    @default(1)
   company               Company                @relation(fields: [companyId], references: [id])
+
+  @@unique([email, companyId])
 }
 
 model Role {

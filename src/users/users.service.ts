@@ -6,9 +6,19 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(reqUser: any) {
-    let where: any = {};
+  async findAll(reqUser: any, queriedCompanyId?: number) {
+    let where: any = {
+      role: {
+        isNot: {
+          name: 'Super Admin',
+        },
+      },
+    };
     if (reqUser.role.name !== 'Super Admin') {
+      where.companyId = reqUser.companyId;
+    } else if (queriedCompanyId) {
+      where.companyId = queriedCompanyId;
+    } else {
       where.companyId = reqUser.companyId;
     }
     const users = await this.prisma.user.findMany({
@@ -32,11 +42,6 @@ export class UsersService {
   }
 
   async create(reqUser: any, data: any) {
-    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) {
-      throw new BadRequestException('Email already in use');
-    }
-
     const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
     if (!role) {
       throw new BadRequestException('Invalid role selected');
@@ -48,6 +53,11 @@ export class UsersService {
     const companyId = (reqUser.role.name === 'Super Admin' && data.companyId) 
       ? data.companyId 
       : reqUser.companyId;
+
+    const existing = await this.prisma.user.findFirst({ where: { email: data.email, companyId } });
+    if (existing) {
+      throw new BadRequestException('Email already in use');
+    }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const user = await this.prisma.user.create({
@@ -82,7 +92,7 @@ export class UsersService {
     }
 
     if (data.email && data.email !== user.email) {
-      const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+      const existing = await this.prisma.user.findFirst({ where: { email: data.email, companyId: user.companyId } });
       if (existing) throw new BadRequestException('Email already in use');
     }
 

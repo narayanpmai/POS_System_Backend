@@ -10,18 +10,19 @@ export class ProductsService {
   // CATEGORIES BUSINESS LOGIC
   // ==========================================
 
-  async createCategory(dto: CreateCategoryDto) {
+  async createCategory(user: any, dto: CreateCategoryDto) {
     const exists = await this.prisma.category.findUnique({
-      where: { name_companyId: { name: dto.name, companyId: 1 } },
+      where: { name_companyId: { name: dto.name, companyId: user.companyId } },
     });
     if (exists) {
       throw new BadRequestException('Category name already exists');
     }
-    return this.prisma.category.create({ data: dto });
+    return this.prisma.category.create({ data: { ...dto, companyId: user.companyId } });
   }
 
-  async findAllCategories() {
+  async findAllCategories(user: any) {
     return this.prisma.category.findMany({
+      where: { companyId: user.companyId },
       include: {
         _count: {
           select: { products: true }
@@ -31,20 +32,20 @@ export class ProductsService {
     });
   }
 
-  async findCategoryById(id: number) {
+  async findCategoryById(user: any, id: number) {
     const category = await this.prisma.category.findUnique({
       where: { id },
       include: { products: true },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category || category.companyId !== user.companyId) throw new NotFoundException('Category not found');
     return category;
   }
 
-  async updateCategory(id: number, dto: UpdateCategoryDto) {
-    await this.findCategoryById(id);
+  async updateCategory(user: any, id: number, dto: UpdateCategoryDto) {
+    await this.findCategoryById(user, id);
     if (dto.name) {
       const exists = await this.prisma.category.findFirst({
-        where: { name: dto.name, NOT: { id } },
+        where: { name: dto.name, NOT: { id }, companyId: user.companyId },
       });
       if (exists) throw new BadRequestException('Category name already exists');
     }
@@ -54,8 +55,8 @@ export class ProductsService {
     });
   }
 
-  async removeCategory(id: number) {
-    await this.findCategoryById(id);
+  async removeCategory(user: any, id: number) {
+    await this.findCategoryById(user, id);
     // Check if products exist in category
     const productsCount = await this.prisma.product.count({
       where: { categoryId: id },
@@ -70,29 +71,29 @@ export class ProductsService {
   // PRODUCTS BUSINESS LOGIC
   // ==========================================
 
-  async createProduct(dto: CreateProductDto, userId: number) {
+  async createProduct(dto: CreateProductDto, user: any) {
     // Check Category
     const category = await this.prisma.category.findUnique({
       where: { id: dto.categoryId },
     });
-    if (!category) throw new NotFoundException('Selected category does not exist');
+    if (!category || category.companyId !== user.companyId) throw new NotFoundException('Selected category does not exist');
 
     // Check unique SKU
     const skuExists = await this.prisma.product.findUnique({
-      where: { SKU_companyId: { SKU: dto.SKU, companyId: 1 } },
+      where: { SKU_companyId: { SKU: dto.SKU, companyId: user.companyId } },
     });
     if (skuExists) throw new BadRequestException('SKU must be unique');
 
     // Check unique barcode
     if (dto.barcode) {
       const barcodeExists = await this.prisma.product.findUnique({
-        where: { barcode_companyId: { barcode: dto.barcode, companyId: 1 } },
+        where: { barcode_companyId: { barcode: dto.barcode, companyId: user.companyId } },
       });
       if (barcodeExists) throw new BadRequestException('Barcode must be unique');
     }
 
     // Force initial stock to 0 so that it only comes from Purchases
-    const productData = { ...dto, stock: 0 };
+    const productData = { ...dto, stock: 0, companyId: user.companyId };
     
     // Create product
     const product = await this.prisma.product.create({
@@ -103,7 +104,7 @@ export class ProductsService {
     return product;
   }
 
-  async findAllProducts(query: {
+  async findAllProducts(user: any, query: {
     page?: number;
     limit?: number;
     search?: string;
@@ -114,7 +115,7 @@ export class ProductsService {
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { companyId: user.companyId };
 
     if (query.categoryId) {
       where.categoryId = Number(query.categoryId);
@@ -149,6 +150,7 @@ export class ProductsService {
     // Low stock warnings summary count
     const lowStockCount = await this.prisma.product.count({
       where: {
+        companyId: user.companyId,
         stock: {
           lte: 5, // Default warning threshold
         },
@@ -165,44 +167,44 @@ export class ProductsService {
     };
   }
 
-  async findProductById(id: number) {
+  async findProductById(user: any, id: number) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: { category: true },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product || product.companyId !== user.companyId) throw new NotFoundException('Product not found');
     return product;
   }
 
-  async findProductByBarcode(barcode: string) {
+  async findProductByBarcode(user: any, barcode: string) {
     const product = await this.prisma.product.findUnique({
-      where: { barcode_companyId: { barcode, companyId: 1 } },
+      where: { barcode_companyId: { barcode, companyId: user.companyId } },
       include: { category: true },
     });
-    if (!product) throw new NotFoundException(`Product with barcode ${barcode} not found`);
+    if (!product || product.companyId !== user.companyId) throw new NotFoundException(`Product with barcode ${barcode} not found`);
     return product;
   }
 
-  async updateProduct(id: number, dto: UpdateProductDto) {
-    const current = await this.findProductById(id);
+  async updateProduct(user: any, id: number, dto: UpdateProductDto) {
+    const current = await this.findProductById(user, id);
 
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({
         where: { id: dto.categoryId },
       });
-      if (!category) throw new NotFoundException('Selected category does not exist');
+      if (!category || category.companyId !== user.companyId) throw new NotFoundException('Selected category does not exist');
     }
 
     if (dto.SKU && dto.SKU !== current.SKU) {
       const skuExists = await this.prisma.product.findUnique({
-        where: { SKU_companyId: { SKU: dto.SKU, companyId: 1 } },
+        where: { SKU_companyId: { SKU: dto.SKU, companyId: user.companyId } },
       });
       if (skuExists) throw new BadRequestException('SKU must be unique');
     }
 
     if (dto.barcode && dto.barcode !== current.barcode) {
       const barcodeExists = await this.prisma.product.findUnique({
-        where: { barcode_companyId: { barcode: dto.barcode, companyId: 1 } },
+        where: { barcode_companyId: { barcode: dto.barcode, companyId: user.companyId } },
       });
       if (barcodeExists) throw new BadRequestException('Barcode must be unique');
     }
@@ -214,8 +216,8 @@ export class ProductsService {
     });
   }
 
-  async removeProduct(id: number) {
-    await this.findProductById(id);
+  async removeProduct(user: any, id: number) {
+    await this.findProductById(user, id);
 
     // Verify if item has active sales references
     const salesCount = await this.prisma.saleItem.count({
@@ -228,8 +230,8 @@ export class ProductsService {
     return this.prisma.product.delete({ where: { id } });
   }
 
-  async updateStockManually(id: number, quantity: number, type: 'STOCK_IN' | 'STOCK_OUT', reason: string, userId: number) {
-    const product = await this.findProductById(id);
+  async updateStockManually(id: number, quantity: number, type: 'STOCK_IN' | 'STOCK_OUT', reason: string, user: any) {
+    const product = await this.findProductById(user, id);
     let newStock = product.stock;
 
     if (type === 'STOCK_IN') {
@@ -252,7 +254,8 @@ export class ProductsService {
         type: type,
         quantity: quantity,
         reason: reason || 'Manual Stock Adjustment',
-        userId: userId,
+        userId: user.id,
+        companyId: user.companyId,
       },
     });
 

@@ -6,7 +6,7 @@ import { CreateSaleDto } from './dto/sales.dto';
 export class SalesService {
   constructor(private prisma: PrismaService) {}
 
-  async checkout(dto: CreateSaleDto, cashierId: number) {
+  async checkout(user: any, dto: CreateSaleDto) {
     if (dto.items.length === 0) {
       throw new BadRequestException('Cannot complete sale with empty cart');
     }
@@ -70,7 +70,8 @@ export class SalesService {
         type: 'STOCK_OUT' as const,
         quantity: itemDto.quantity,
         reason: 'POS Sale Outflow',
-        userId: cashierId,
+        userId: user.id,
+        companyId: user.companyId,
       });
     }
 
@@ -95,7 +96,8 @@ export class SalesService {
         data: {
           invoiceNo,
           customerId: dto.customerId || null,
-          cashierId,
+          cashierId: user.id,
+          companyId: user.companyId,
           subtotal: Number(subtotal.toFixed(2)),
           taxAmount: Number(taxAmount.toFixed(2)),
           discountAmount: Number(discountAmount.toFixed(2)),
@@ -134,6 +136,7 @@ export class SalesService {
             quantity: log.quantity,
             reason: `${log.reason} - Invoice ${invoiceNo}`,
             userId: log.userId,
+            companyId: user.companyId,
           },
         });
       }
@@ -177,6 +180,7 @@ export class SalesService {
           data: {
             referenceNo: invoiceNo,
             description: `POS Sale - ${invoiceNo}`,
+            companyId: user.companyId,
             lines: {
               create: [
                 { accountId: cashAcc, debit: totalAmount, credit: 0, description: 'Cash Received' },
@@ -194,7 +198,7 @@ export class SalesService {
     });
   }
 
-  async findAllSales(query: {
+  async findAllSales(user: any, query: {
     page?: number;
     limit?: number;
     search?: string;
@@ -206,7 +210,7 @@ export class SalesService {
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: any = { companyId: user.companyId };
 
     if (query.search) {
       where.OR = [
@@ -274,7 +278,7 @@ export class SalesService {
     };
   }
 
-  async findSaleById(id: number) {
+  async findSaleById(user: any, id: number) {
     const sale = await this.prisma.sale.findUnique({
       where: { id },
       include: {
@@ -285,11 +289,11 @@ export class SalesService {
         },
       },
     });
-    if (!sale) throw new NotFoundException('Transaction not found');
+    if (!sale || sale.companyId !== user.companyId) throw new NotFoundException('Transaction not found');
     return sale;
   }
 
-  async remove(id: number, adminId: number) {
+  async remove(user: any, id: number) {
     const sale = await this.prisma.sale.findUnique({
       where: { id },
       include: {
@@ -298,7 +302,7 @@ export class SalesService {
         cashier: { select: { name: true } },
       },
     });
-    if (!sale) throw new NotFoundException('Sale not found');
+    if (!sale || sale.companyId !== user.companyId) throw new NotFoundException('Sale not found');
 
     return await this.prisma.$transaction(async (tx) => {
       // 0. Save snapshot to DeletedSale log
@@ -319,7 +323,8 @@ export class SalesService {
           cashierName: sale.cashier?.name || null,
           totalAmount: sale.totalAmount,
           itemsSnapshot,
-          deletedById: adminId,
+          deletedById: user.id,
+          companyId: user.companyId,
         },
       });
 
@@ -336,7 +341,8 @@ export class SalesService {
             type: 'STOCK_IN',
             quantity: item.quantity,
             reason: `Reverted Sale Deletion - Invoice ${sale.invoiceNo}`,
-            userId: adminId,
+            userId: user.id,
+            companyId: user.companyId,
           },
         });
       }
@@ -357,14 +363,19 @@ export class SalesService {
     });
   }
 
-  async clearAllSales() {
-    await this.prisma.saleItem.deleteMany();
-    await this.prisma.sale.deleteMany();
+  async clearAllSales(user: any) {
+    await this.prisma.saleItem.deleteMany({
+      where: { sale: { companyId: user.companyId } }
+    });
+    await this.prisma.sale.deleteMany({
+      where: { companyId: user.companyId }
+    });
     return { message: 'Sales data cleared successfully' };
   }
 
-  async getDeletedSales() {
+  async getDeletedSales(user: any) {
     const deletedSales = await this.prisma.deletedSale.findMany({
+      where: { companyId: user.companyId },
       orderBy: { deletedAt: 'desc' },
     });
     return deletedSales.map((s) => ({

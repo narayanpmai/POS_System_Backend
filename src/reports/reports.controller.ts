@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
+import { OptionalIntPipe } from '../common/pipes/optional-int.pipe';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -14,8 +15,11 @@ export class ReportsController {
 
   @Get('dashboard-summary')
   @ApiOperation({ summary: 'Retrieve full KPI dashboard widgets dataset' })
-  getDashboardSummary() {
-    return this.reportsService.getDashboardSummary();
+  getDashboardSummary(
+    @Req() req: any,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
+  ) {
+    return this.reportsService.getDashboardSummary(req.user, companyId);
   }
 
   @Get('sales')
@@ -24,24 +28,32 @@ export class ReportsController {
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
   getSalesAnalytics(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
   ) {
-    return this.reportsService.getSalesAnalytics(startDate, endDate);
+    return this.reportsService.getSalesAnalytics(req.user, startDate, endDate, companyId);
   }
 
   @Get('inventory-valuation')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate total asset cost valuation and stock thresholds (Admin Only)' })
-  getInventoryReport() {
-    return this.reportsService.getInventoryReport();
+  getInventoryReport(
+    @Req() req: any,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
+  ) {
+    return this.reportsService.getInventoryReport(req.user, companyId);
   }
 
   @Get('financial')
   @Roles('Admin')
   @ApiOperation({ summary: 'Comprehensive financial breakdown by Nepali Fiscal Year (Admin Only)' })
-  getFinancialReport() {
-    return this.reportsService.getFinancialReport();
+  getFinancialReport(
+    @Req() req: any,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
+  ) {
+    return this.reportsService.getFinancialReport(req.user, companyId);
   }
 
   @Get('daily-summary')
@@ -50,23 +62,31 @@ export class ReportsController {
   @ApiQuery({ name: 'startDate', required: false, type: String })
   @ApiQuery({ name: 'endDate', required: false, type: String })
   getDailySummary(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
   ) {
-    return this.reportsService.getDailySummary(startDate, endDate);
+    return this.reportsService.getDailySummary(req.user, startDate, endDate, companyId);
   }
 
   @Get('closing-stock')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate Closing Stock for Active Fiscal Year' })
-  getClosingStock() {
-    return this.reportsService.getClosingStock();
+  getClosingStock(
+    @Req() req: any,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
+  ) {
+    return this.reportsService.getClosingStock(req.user, companyId);
   }
 
   @Get('closing-balance')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate Closing Balance for Active Fiscal Year' })
-  getClosingBalance() {
-    return this.reportsService.getClosingBalance();
+  getClosingBalance(
+    @Req() req: any,
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
+  ) {
+    return this.reportsService.getClosingBalance(req.user, companyId);
   }
 }

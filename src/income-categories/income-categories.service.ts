@@ -6,9 +6,9 @@ import { CreateIncomeCategoryDto, UpdateIncomeCategoryDto } from './dto/income-c
 export class IncomeCategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateIncomeCategoryDto) {
+  async create(user: any, dto: CreateIncomeCategoryDto) {
     const existing = await this.prisma.incomeCategory.findFirst({
-      where: { name: dto.name }
+      where: { name: dto.name, companyId: user.companyId }
     });
     if (existing) {
       throw new BadRequestException('An income category with this name already exists');
@@ -18,12 +18,13 @@ export class IncomeCategoriesService {
       data: {
         name: dto.name,
         description: dto.description,
+        companyId: user.companyId,
       }
     });
   }
 
-  async findAll(search?: string) {
-    const where: any = {};
+  async findAll(user: any, search?: string) {
+    const where: any = { companyId: user.companyId };
     if (search) {
       where.OR = [
         { name: { contains: search } },
@@ -36,19 +37,20 @@ export class IncomeCategoriesService {
     });
   }
 
-  async findOne(id: number) {
+  async findOne(user: any, id: number) {
     const category = await this.prisma.incomeCategory.findUnique({ where: { id } });
-    if (!category) throw new NotFoundException('Income category not found');
+    if (!category || category.companyId !== user.companyId) throw new NotFoundException('Income category not found');
     return category;
   }
 
-  async update(id: number, dto: UpdateIncomeCategoryDto) {
-    await this.findOne(id);
+  async update(user: any, id: number, dto: UpdateIncomeCategoryDto) {
+    await this.findOne(user, id);
 
     if (dto.name) {
       const existing = await this.prisma.incomeCategory.findFirst({
         where: {
           name: dto.name,
+          companyId: user.companyId,
           id: { not: id }
         }
       });
@@ -63,12 +65,12 @@ export class IncomeCategoriesService {
     });
   }
 
-  async remove(id: number) {
-    const cat = await this.findOne(id);
+  async remove(user: any, id: number) {
+    const cat = await this.findOne(user, id);
     
     // Check if category is linked to any incomes (since they are stored as string)
     const linkedIncomes = await this.prisma.income.count({
-      where: { category: cat.name }
+      where: { category: cat.name, companyId: user.companyId }
     });
     if (linkedIncomes > 0) {
       throw new BadRequestException('Cannot delete an income category that has associated incomes logged');

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { BrandsService } from './brands.service';
 import { CreateBrandDto, UpdateBrandDto } from './dto/brands.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,31 +14,31 @@ export class BrandsController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new brand' })
-  create(@Body() dto: CreateBrandDto) {
-    return this.brandsService.create(dto);
+  create(@Req() req: any, @Body() dto: CreateBrandDto) {
+    return this.brandsService.create(req.user, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all brands' })
-  findAll(@Query('search') search?: string) {
-    return this.brandsService.findAll(search);
+  findAll(@Req() req: any, @Query('search') search?: string) {
+    return this.brandsService.findAll(req.user, search);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific brand' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.findOne(id);
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.brandsService.findOne(req.user, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update brand details' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBrandDto) {
-    return this.brandsService.update(id, dto);
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBrandDto) {
+    return this.brandsService.update(req.user, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete brand' })
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.remove(id);
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.brandsService.remove(req.user, id);
   }
 }

@@ -16,8 +16,7 @@ export class SalesController {
   @ApiOperation({ summary: 'Process a new POS transaction checkout' })
   @ApiResponse({ status: 201, description: 'Sale processed successfully, returns transaction details' })
   checkout(@Body() dto: CreateSaleDto, @Req() req: any) {
-    const cashierId = req.user.id;
-    return this.salesService.checkout(dto, cashierId);
+    return this.salesService.checkout(req.user, dto);
   }
 
   @Get()
@@ -29,6 +28,7 @@ export class SalesController {
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format YYYY-MM-DD' })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
   findAllSales(
+    @Req() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
@@ -36,39 +36,39 @@ export class SalesController {
     @Query('endDate') endDate?: string,
     @Query('categoryId') categoryId?: string,
   ) {
-    return this.salesService.findAllSales({ page, limit, search, startDate, endDate, categoryId });
+    return this.salesService.findAllSales(req.user, { page, limit, search, startDate, endDate, categoryId });
   }
 
   @Get('deleted')
   @ApiOperation({ summary: 'Get all deleted sales log (Admin only)' })
   getDeletedSales(@Req() req: any) {
-    if (req.user.role.name !== 'Admin') {
+    if (req.user.role.name !== 'Admin' && req.user.role.name !== 'Super Admin') {
       throw new Error('Unauthorized');
     }
-    return this.salesService.getDeletedSales();
+    return this.salesService.getDeletedSales(req.user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific sale transaction for invoice/receipt' })
-  findSaleById(@Param('id', ParseIntPipe) id: number) {
-    return this.salesService.findSaleById(id);
+  findSaleById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.salesService.findSaleById(req.user, id);
   }
 
   @Delete('clear-all')
   @ApiOperation({ summary: 'Clear all sales data (Admin only)' })
   clearAllSales(@Req() req: any) {
-    if (req.user.role.name !== 'Admin') {
+    if (req.user.role.name !== 'Admin' && req.user.role.name !== 'Super Admin') {
       throw new Error('Unauthorized');
     }
-    return this.salesService.clearAllSales();
+    return this.salesService.clearAllSales(req.user);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a sale transaction and revert stock (Admin only)' })
   remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    if (req.user.role.name !== 'Admin') {
+    if (req.user.role.name !== 'Admin' && req.user.role.name !== 'Super Admin') {
       throw new Error('Unauthorized');
     }
-    return this.salesService.remove(id, req.user.id);
+    return this.salesService.remove(req.user, id);
   }
 }

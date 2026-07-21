@@ -9,9 +9,6 @@ export class PaymentsController {
 
   @Post('process')
   processPayment(@Req() req: any, @Body() body: any) {
-    return this.paymentsService.processPayment({
-      ...body,
-      cashierId: req.user.id
-    });
+    return this.paymentsService.processPayment(req.user, body);
   }
 }
