@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Body, Param, ParseIntPipe, UseGuards, Req, Query, BadRequestException } from '@nestjs/common';
+import { OptionalIntPipe } from '../common/pipes/optional-int.pipe';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -13,7 +14,7 @@ export class UsersController {
   @Roles('Admin')
   findAll(
     @Req() req: any,
-    @Query('companyId', new ParseIntPipe({ optional: true })) companyId?: number
+    @Query('companyId', new OptionalIntPipe()) companyId?: number
   ) {
     return this.usersService.findAll(req.user, companyId);
   }
