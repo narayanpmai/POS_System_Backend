@@ -7,7 +7,13 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(reqUser: any) {
-    let where: any = {};
+    let where: any = {
+      role: {
+        name: {
+          not: 'Super Admin',
+        },
+      },
+    };
     if (reqUser.role.name !== 'Super Admin') {
       where.companyId = reqUser.companyId;
     }
