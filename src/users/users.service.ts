@@ -9,8 +9,8 @@ export class UsersService {
   async findAll(reqUser: any, queriedCompanyId?: number) {
     let where: any = {
       role: {
-        name: {
-          not: 'Super Admin',
+        isNot: {
+          name: 'Super Admin',
         },
       },
     };
