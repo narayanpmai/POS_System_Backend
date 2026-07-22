@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, UseGuards, UnauthorizedException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, UseGuards, UnauthorizedException, Req, Delete } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -25,5 +25,11 @@ export class CompaniesController {
   @Roles('Super Admin')
   async update(@Req() req: any, @Param('id') id: string, @Body() data: any) {
     return this.companiesService.update(Number(id), data);
+  }
+
+  @Delete(':id')
+  @Roles('Super Admin')
+  async remove(@Req() req: any, @Param('id') id: string) {
+    return this.companiesService.remove(Number(id));
   }
 }

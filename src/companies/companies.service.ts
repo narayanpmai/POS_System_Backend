@@ -110,4 +110,60 @@ export class CompaniesService {
       data,
     });
   }
+
+  async remove(id: number) {
+    const company = await this.findOne(id);
+
+    // Prevent deleting the default company
+    if (id === 1) {
+      throw new BadRequestException('Cannot delete the default company.');
+    }
+
+    try {
+      return await this.prisma.$transaction(async (prisma) => {
+        // Delete all associated data in correct order to respect foreign keys
+        await prisma.paymentTransaction.deleteMany({ where: { companyId: id } });
+        await prisma.deletedSale.deleteMany({ where: { companyId: id } });
+        await prisma.activityLog.deleteMany({ where: { companyId: id } });
+        await prisma.shift.deleteMany({ where: { companyId: id } });
+        await prisma.inventoryTransaction.deleteMany({ where: { companyId: id } });
+        await prisma.purchaseReturn.deleteMany({ where: { companyId: id } });
+        
+        await prisma.saleItem.deleteMany({ where: { sale: { companyId: id } } });
+        await prisma.sale.deleteMany({ where: { companyId: id } });
+        
+        await prisma.purchaseItem.deleteMany({ where: { purchase: { companyId: id } } });
+        await prisma.purchase.deleteMany({ where: { companyId: id } });
+        
+        await prisma.product.deleteMany({ where: { companyId: id } });
+        await prisma.category.deleteMany({ where: { companyId: id } });
+        await prisma.brand.deleteMany({ where: { companyId: id } });
+        await prisma.supplier.deleteMany({ where: { companyId: id } });
+        
+        await prisma.rewardPointHistory.deleteMany({ where: { companyId: id } });
+        await prisma.customer.deleteMany({ where: { companyId: id } });
+        await prisma.membershipTier.deleteMany({ where: { companyId: id } });
+        
+        await prisma.expense.deleteMany({ where: { companyId: id } });
+        await prisma.expenseCategory.deleteMany({ where: { companyId: id } });
+        await prisma.income.deleteMany({ where: { companyId: id } });
+        await prisma.incomeCategory.deleteMany({ where: { companyId: id } });
+        
+        await prisma.storeSetting.deleteMany({ where: { companyId: id } });
+        await prisma.fiscalYear.deleteMany({ where: { companyId: id } });
+        
+        await prisma.journalEntryLine.deleteMany({ where: { journalEntry: { companyId: id } } });
+        await prisma.journalEntry.deleteMany({ where: { companyId: id } });
+        await prisma.account.deleteMany({ where: { companyId: id } });
+        
+        await prisma.user.deleteMany({ where: { companyId: id } });
+        
+        // Finally, delete the company itself
+        return prisma.company.delete({ where: { id } });
+      });
+    } catch (error: any) {
+      console.error('Error deleting company:', error);
+      throw new BadRequestException('Failed to delete company and its associated data: ' + (error.message || 'Unknown error'));
+    }
+  }
 }
