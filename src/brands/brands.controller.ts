@@ -20,8 +20,10 @@ export class BrandsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all brands' })
-  findAll(@Req() req: any, @Query('search') search?: string) {
-    return this.brandsService.findAll(req.user.companyId, search);
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
+  findAll(@Req() req: any, @Query('search') search?: string, @Query('companyId') queryCompanyId?: string) {
+    const cid = (req.user.role?.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.brandsService.findAll(cid, search);
   }
 
   @Get(':id')
