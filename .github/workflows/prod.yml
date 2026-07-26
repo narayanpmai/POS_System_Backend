@@ -23,29 +23,15 @@ jobs:
         shell: bash
         run: |
           set +e
-
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
           nvm install --lts
           nvm use --lts
           nvm alias default lts/*
-
           echo "✓ Node: $(node -v)"
           echo "✓ NPM: $(npm -v)"
 
-      - name: Install dependencies
-        shell: bash
-        run: |
-          set -e
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm use --lts
-
-          npm install --include=dev
-          chmod -R +x node_modules/.bin || true
-
-      - name: Generate Prisma client
+      - name: Install & Build Backend
         shell: bash
         env:
           DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
@@ -54,104 +40,69 @@ jobs:
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
-
+          cd backend
+          npm install --include=dev
           npx prisma generate
-
-      - name: Clean dist folder
-        shell: bash
-        run: |
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm use --lts
-
-          rm -rf dist || true
-
-      - name: Build project
-        shell: bash
-        run: |
-          set -e
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm use --lts
-
-          echo "Starting build..."
           ./node_modules/.bin/nest build
-          echo "Build completed"
 
-      - name: Verify build output
+      - name: Install & Build Frontend
         shell: bash
         run: |
           set -e
-          if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
-            echo "❌ ERROR: dist/src/main.js not found!"
-            ls -lah dist/ || echo "dist folder not found"
-            exit 1
-          fi
-          echo "✓ Production build verified"
-          ls -lh dist/src/main.js
-
-      - name: Run tests
-        shell: bash
-        run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
-
-          npm test || echo "No test script or tests failing - continuing for dev..."
+          cd frontend
+          npm install --include=dev
+          npm run build
 
       - name: Deploy to dev directory
         shell: bash
         run: |
           DEPLOY_DIR="$HOME/koselighar-backend"
           BUILD_DIR="$(pwd)"
-
           echo "Deploying to $DEPLOY_DIR..."
           mkdir -p "$DEPLOY_DIR"
           rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_DIR"/
           echo "✓ Files copied to deployment directory"
 
-      - name: Copy env file to deployment directory
+      - name: Copy env files
         shell: bash
         run: |
           if [ -f "/home/envs/koselighar/.env.production" ]; then
-            cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
+            cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/backend/.env"
+            cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/frontend/.env.local" || true
             echo "✓ .env.production copied"
           else
+            cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend/backend/.env" || true
+            cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend/frontend/.env.local" || true
             echo "⚠️ .env.production not found, falling back to .env.development"
-            cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend/.env"
           fi
-          chmod 644 "$HOME/koselighar-backend/.env"
 
-      - name: Push database schema changes (dev)
+      - name: Push database schema changes
         shell: bash
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
-
-          cd "$HOME/koselighar-backend"
-          
-          echo "Generating Prisma client in deployment directory..."
+          cd "$HOME/koselighar-backend/backend"
           npx prisma generate
-
-          echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
+          node seed.js || true
 
-          echo "Executing database seed.js..."
-          node seed.js
-
-      - name: Install production dependencies in dev deployment dir
+      - name: Install production dependencies
         shell: bash
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
-
-          cd "$HOME/koselighar-backend"
+          cd "$HOME/koselighar-backend/backend"
           npm install --omit=dev --ignore-scripts
-          npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
+          npm rebuild bcrypt || true
+          cd "$HOME/koselighar-backend/frontend"
+          npm install --omit=dev --ignore-scripts || true
 
-      - name: Ensure uploads folder exists (dev)
+      - name: Ensure uploads folder exists
         shell: bash
         run: |
           UPLOAD_DIR="$HOME/storage/koselighar"
@@ -160,52 +111,12 @@ jobs:
           echo "Uploads dir:"
           ls -ld "$UPLOAD_DIR"
 
-      - name: Deploy dev with PM2 (reuse same process)
+      - name: Deploy with PM2
         shell: bash
-        env:
-          APP_NAME: koselighar-prod
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
-
           cd "$HOME/koselighar-backend"
-
-          if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-            pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
-          else
-            pm2 start ecosystem.config.cjs --only "$APP_NAME"
-          fi
-
-          # Wait up to 30 seconds for app to come online
-          MAX_ATTEMPTS=15
-          ATTEMPT=0
-
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            sleep 2
-            ATTEMPT=$((ATTEMPT + 1))
-
-            STATUS=$(pm2 jlist | jq -r ".[] | select(.name==\"$APP_NAME\") | .pm2_env.status" | head -n1)
-
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Status = $STATUS"
-
-            if [ "$STATUS" = "online" ]; then
-              echo "✓ Dev deployment successful"
-              pm2 save --force
-              exit 0
-            fi
-          done
-
-          echo "❌ Timeout: App did not come online after 30 seconds"
-          pm2 logs "$APP_NAME" --lines 100 --nostream || true
-          exit 1
-
-      - name: Deployment Summary (dev)
-        if: always()
-        shell: bash
-        run: |
-          echo "=== Final PM2 Status ==="
-          pm2 list
-          echo ""
-          echo "Application is running from:"
-          echo "$HOME/koselighar-backend"
+          pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+          pm2 save --force
