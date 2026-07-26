@@ -10,6 +10,9 @@ export class UsersService {
     let where: any = {};
     if (reqUser.role.name !== 'Super Admin') {
       where.companyId = reqUser.companyId;
+      where.role = {
+        name: { not: 'Super Admin' }
+      };
     }
     const users = await this.prisma.user.findMany({
       where,
@@ -90,6 +93,10 @@ export class UsersService {
       active: data.active
     };
 
+    if (reqUser.role.name === 'Super Admin' && data.companyId !== undefined) {
+      updateData.companyId = Number(data.companyId);
+    }
+
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }
@@ -102,6 +109,30 @@ export class UsersService {
 
     const { password, ...rest } = updated;
     return rest;
+  }
+
+  async remove(reqUser: any, id: number) {
+    const user = await this.prisma.user.findUnique({ where: { id }, include: { role: true } });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (reqUser.role.name !== 'Super Admin' && user.companyId !== reqUser.companyId) {
+      throw new BadRequestException('Cannot delete user from another company');
+    }
+
+    if (user.role.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+      throw new BadRequestException('Only Super Admin can delete a Super Admin');
+    }
+
+    if (user.id === reqUser.id) {
+      throw new BadRequestException('Cannot delete your own account');
+    }
+
+    try {
+      await this.prisma.user.delete({ where: { id } });
+      return { message: 'User deleted successfully' };
+    } catch (err: any) {
+      throw new BadRequestException('Cannot delete user because they have associated records (e.g., sales). Consider deactivating the account instead.');
+    }
   }
 
   async resetPassword(reqUser: any, id: number, data: any) {
