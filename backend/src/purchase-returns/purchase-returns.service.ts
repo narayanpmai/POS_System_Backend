@@ -11,6 +11,15 @@ export class PurchaseReturnsService {
       throw new BadRequestException('No items provided for return');
     }
 
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+    if (!activeFy) {
+      throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
+    }
+    const txDate = new Date();
+    if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
+      throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
+    }
+
     const purchase = await this.prisma.purchase.findUnique({
       where: { id: purchaseId, companyId },
       include: { items: true },

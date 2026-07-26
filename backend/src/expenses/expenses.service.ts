@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto, UpdateExpenseDto } from './dto/expenses.dto';
 
@@ -7,13 +7,22 @@ export class ExpensesService {
   constructor(private prisma: PrismaService) {}
 
   async create(companyId: number, dto: CreateExpenseDto) {
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+    if (!activeFy) {
+      throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
+    }
+    const txDate = dto.date ? new Date(dto.date) : new Date();
+    if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
+      throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
+    }
+
     return this.prisma.expense.create({
       data: {
         referenceNo: dto.referenceNo,
         category: dto.category,
         amount: dto.amount,
         description: dto.description,
-        date: dto.date ? new Date(dto.date) : new Date(),
+        date: txDate,
         companyId,
       }
     });

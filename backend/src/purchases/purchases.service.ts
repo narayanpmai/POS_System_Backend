@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,13 +9,22 @@ export class PurchasesService {
     // Basic logic to create purchase
     const { poNumber, supplierId, totalAmount, purchaseDate, items } = data;
     
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+    if (!activeFy) {
+      throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
+    }
+    const txDate = purchaseDate ? new Date(purchaseDate) : new Date();
+    if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
+      throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const purchase = await tx.purchase.create({
         data: {
           poNumber,
           supplierId: supplierId || null,
           totalAmount,
-          purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
+          purchaseDate: txDate,
           userId,
           status: 'RECEIVED',
           companyId,
@@ -146,7 +155,7 @@ export class PurchasesService {
   }
 
   async findAll(companyId: number) {
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
     const where: any = { companyId };
     if (activeFy) {
       where.purchaseDate = {
