@@ -5,7 +5,8 @@ module.exports = {
       cwd: "./backend",
       script: "dist/src/main.js",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        PORT: "5001"
       }
     },
     {
