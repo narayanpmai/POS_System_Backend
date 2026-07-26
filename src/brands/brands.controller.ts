@@ -3,7 +3,7 @@ import { BrandsService } from './brands.service';
 import { CreateBrandDto, UpdateBrandDto } from './dto/brands.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('Brands Catalog')
 @ApiBearerAuth()
