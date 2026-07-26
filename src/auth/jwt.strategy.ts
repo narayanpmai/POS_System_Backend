@@ -10,10 +10,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET || 'smartpos-ultra-secure-key-2026-antigravity',
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: any) {
+  async validate(req: any, payload: any) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: {
@@ -23,6 +24,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!user || !user.active) {
       throw new UnauthorizedException('User is not authorized or active');
+    }
+
+    // --- Super Admin Global Company Filter ---
+    // If the user is Super Admin, allow overriding their target companyId via header
+    if (user.role && user.role.name === 'Super Admin') {
+      const headerCompanyId = req.headers['x-company-id'];
+      if (headerCompanyId) {
+        const parsed = parseInt(headerCompanyId as string, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          user.companyId = parsed;
+        }
+      }
     }
 
     // Omit sensitive fields
