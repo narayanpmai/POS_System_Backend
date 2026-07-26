@@ -26,8 +26,10 @@ export class ProductsController {
 
   @Get('categories')
   @ApiOperation({ summary: 'List all product categories' })
-  findAllCategories(@Req() req: any) {
-    return this.productsService.findAllCategories(req.user.companyId);
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
+  findAllCategories(@Req() req: any, @Query('companyId') queryCompanyId?: string) {
+    const cid = (req.user.role?.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.productsService.findAllCategories(cid);
   }
 
   @Get('categories/:id')
@@ -69,6 +71,7 @@ export class ProductsController {
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: Number })
   @ApiQuery({ name: 'lowStockOnly', required: false, type: Boolean })
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
   findAllProducts(
     @Req() req: any,
     @Query('page') page?: number,
@@ -76,8 +79,10 @@ export class ProductsController {
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: number,
     @Query('lowStockOnly') lowStockOnly?: boolean,
+    @Query('companyId') queryCompanyId?: string,
   ) {
-    return this.productsService.findAllProducts(req.user.companyId, { page, limit, search, categoryId, lowStockOnly });
+    const cid = (req.user.role?.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.productsService.findAllProducts(cid, { page, limit, search, categoryId, lowStockOnly });
   }
 
   @Get('barcode/:barcode')

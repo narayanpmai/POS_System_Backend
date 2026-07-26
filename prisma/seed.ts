@@ -9,13 +9,14 @@ async function main() {
   // 0. Seed Default Company
   const defaultCompany = await prisma.company.upsert({
     where: { id: 1 },
-    update: {},
+    update: { name: 'कोसेली घर (KoseliGhar)', logo: '/logo.png' },
     create: {
       id: 1,
-      name: 'SmartPOS Default Company',
+      name: 'कोसेली घर (KoseliGhar)',
       email: 'admin@smartpos.com',
-      phone: '+1 (555) 000-0000',
-      address: '123 Smart Way',
+      phone: '+977-1-0000000',
+      address: 'नेपाल (Nepal)',
+      logo: '/logo.png',
     },
   });
   console.log('Default company seeded.');
@@ -216,6 +217,23 @@ async function main() {
     });
   }
   console.log('Chart of Accounts seeded.');
+
+  // 9. Default Fiscal Years (Nepal FY)
+  const defaultFiscalYears = [
+    { name: '२०८०/०८१', startDate: new Date('2023-07-17'), endDate: new Date('2024-07-15'), isActive: false, companyId: 1 },
+    { name: '२०८१/०८२', startDate: new Date('2024-07-16'), endDate: new Date('2025-07-15'), isActive: true, companyId: 1 },
+    { name: '२०८२/०८३', startDate: new Date('2025-07-16'), endDate: new Date('2026-07-15'), isActive: false, companyId: 1 },
+  ];
+
+  for (const fy of defaultFiscalYears) {
+    const existingFy = await prisma.fiscalYear.findFirst({
+      where: { name: fy.name, companyId: 1 }
+    });
+    if (!existingFy) {
+      await prisma.fiscalYear.create({ data: fy });
+    }
+  }
+  console.log('Default Nepali Fiscal Years (२०८०/०८१, २०८१/०८२, २०८२/०८३) seeded.');
 
   console.log('Seeding completed successfully!');
 }
