@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Body, Param, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -31,6 +31,12 @@ export class UsersController {
   @Roles('Admin')
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
     return this.usersService.update(req.user, id, body);
+  }
+
+  @Delete(':id')
+  @Roles('Admin')
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.usersService.remove(req.user, id);
   }
 
   @Patch(':id/reset-password')
