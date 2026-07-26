@@ -10,15 +10,17 @@ async function main() {
   const company = await prisma.company.upsert({
     where: { id: 1 },
     update: {
-      name: 'SmartPOS Default Company',
+      name: 'कोसेली घर (KoseliGhar)',
       email: 'admin@smartpos.com',
+      logo: '/logo.png',
     },
     create: {
       id: 1,
-      name: 'SmartPOS Default Company',
+      name: 'कोसेली घर (KoseliGhar)',
       email: 'admin@smartpos.com',
-      phone: '+1 (555) 000-0000',
-      address: '123 Smart Way',
+      phone: '+977-1-0000000',
+      address: 'नेपाल (Nepal)',
+      logo: '/logo.png',
     },
   });
   console.log('✓ Default company ensured with ID:', company.id);
