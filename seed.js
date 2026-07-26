@@ -112,7 +112,22 @@ async function main() {
       active: true,
     },
   });
-  console.log('✓ Seeded cashier@pos.com (password: cashier123, ID:', user3.id, ')');
+  // Seed Default Nepali Fiscal Years
+  const defaultFiscalYears = [
+    { name: '२०८०/०८१', startDate: new Date('2023-07-17'), endDate: new Date('2024-07-15'), isActive: false, companyId: company.id },
+    { name: '२०८१/०८२', startDate: new Date('2024-07-16'), endDate: new Date('2025-07-15'), isActive: true, companyId: company.id },
+    { name: '२०८२/०८३', startDate: new Date('2025-07-16'), endDate: new Date('2026-07-15'), isActive: false, companyId: company.id },
+  ];
+
+  for (const fy of defaultFiscalYears) {
+    const existingFy = await prisma.fiscalYear.findFirst({
+      where: { name: fy.name, companyId: company.id }
+    });
+    if (!existingFy) {
+      await prisma.fiscalYear.create({ data: fy });
+    }
+  }
+  console.log('✓ Seeded Default Nepali Fiscal Years (२०८०/०८१, २०८१/०८२, २०८२/०८३)');
 
   console.log('=== Seed Completed Successfully ===');
 }

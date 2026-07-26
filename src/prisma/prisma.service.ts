@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { AsyncLocalStorage } from 'async_hooks';
 
-export const tenantContext = new AsyncLocalStorage<{ companyId: number }>();
+export const tenantContext = new AsyncLocalStorage<{ companyId: number; isSuperAdmin?: boolean }>();
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -13,8 +13,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     this.$use(async (params, next) => {
       const store = tenantContext.getStore();
       const companyId = store?.companyId;
+      const isSuperAdmin = store?.isSuperAdmin;
       
       if (!companyId || ['Role', 'Company'].includes(params.model as string)) {
+        return next(params);
+      }
+
+      if (isSuperAdmin) {
+        if (!params.args) params.args = {};
+        const isRelationalTenant = ['SaleItem', 'PurchaseItem', 'JournalEntryLine'].includes(params.model as string);
+        if (!isRelationalTenant && (params.action === 'create' || params.action === 'createMany')) {
+          if (Array.isArray(params.args.data)) {
+            params.args.data = params.args.data.map((d: any) => ({ companyId: d.companyId || companyId, ...d }));
+          } else {
+            params.args.data = { companyId: params.args.data?.companyId || companyId, ...params.args.data };
+          }
+        } else if (!isRelationalTenant && params.action === 'upsert') {
+          if (params.args.create) {
+            params.args.create = { companyId: params.args.create?.companyId || companyId, ...params.args.create };
+          }
+        }
         return next(params);
       }
 
