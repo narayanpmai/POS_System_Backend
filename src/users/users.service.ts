@@ -6,24 +6,14 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(reqUser: any, queriedCompanyId?: number) {
-    let where: any = {
-      role: {
-        isNot: {
-          name: 'Super Admin',
-        },
-      },
-    };
+  async findAll(reqUser: any) {
+    let where: any = {};
     if (reqUser.role.name !== 'Super Admin') {
-      where.companyId = reqUser.companyId;
-    } else if (queriedCompanyId) {
-      where.companyId = queriedCompanyId;
-    } else {
       where.companyId = reqUser.companyId;
     }
     const users = await this.prisma.user.findMany({
       where,
-      include: { role: true },
+      include: { role: true, company: true },
       orderBy: { createdAt: 'desc' }
     });
     // Strip passwords before returning
@@ -42,22 +32,19 @@ export class UsersService {
   }
 
   async create(reqUser: any, data: any) {
-    const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
-    if (!role) {
-      throw new BadRequestException('Invalid role selected');
+    const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) {
+      throw new BadRequestException('Email already in use');
     }
-    if (role.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+
+    const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
+    if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
       throw new BadRequestException('Only Super Admin can create a Super Admin');
     }
 
     const companyId = (reqUser.role.name === 'Super Admin' && data.companyId) 
       ? data.companyId 
       : reqUser.companyId;
-
-    const existing = await this.prisma.user.findFirst({ where: { email: data.email, companyId } });
-    if (existing) {
-      throw new BadRequestException('Email already in use');
-    }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const user = await this.prisma.user.create({
@@ -92,7 +79,7 @@ export class UsersService {
     }
 
     if (data.email && data.email !== user.email) {
-      const existing = await this.prisma.user.findFirst({ where: { email: data.email, companyId: user.companyId } });
+      const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
       if (existing) throw new BadRequestException('Email already in use');
     }
 

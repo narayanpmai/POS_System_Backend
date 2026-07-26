@@ -15,7 +15,7 @@ export class SuppliersController {
   @Post()
   @ApiOperation({ summary: 'Create a new supplier' })
   create(@Req() req: any, @Body() dto: CreateSupplierDto) {
-    return this.suppliersService.create(req.user, dto);
+    return this.suppliersService.create(req.user.companyId, dto);
   }
 
   @Get()
@@ -29,24 +29,24 @@ export class SuppliersController {
     @Query('limit') limit?: number,
     @Query('search') search?: string,
   ) {
-    return this.suppliersService.findAll(req.user, search, page ? Number(page) : 1, limit ? Number(limit) : 100);
+    return this.suppliersService.findAll(req.user.companyId, search, page ? Number(page) : 1, limit ? Number(limit) : 100);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific supplier' })
   findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.suppliersService.findOne(req.user, id);
+    return this.suppliersService.findOne(req.user.companyId, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update supplier details' })
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSupplierDto) {
-    return this.suppliersService.update(req.user, id, dto);
+    return this.suppliersService.update(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete supplier' })
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.suppliersService.remove(req.user, id);
+    return this.suppliersService.remove(req.user.companyId, id);
   }
 }

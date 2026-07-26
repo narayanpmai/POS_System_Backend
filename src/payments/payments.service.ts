@@ -9,7 +9,7 @@ export class PaymentsService {
     private salesService: SalesService
   ) {}
 
-  async processPayment(user: any, data: { amount: number, provider: string, sourceToken: string, saleDto?: any }) {
+  async processPayment(companyId: number, data: { amount: number, provider: string, sourceToken: string, saleDto?: any, cashierId?: number }) {
     // 1. Simulate hitting an external payment gateway (Stripe/eSewa)
     // In production, we'd use stripe.charges.create(...)
     const isSuccess = Math.random() > 0.1; // 90% success rate simulation
@@ -22,10 +22,10 @@ export class PaymentsService {
 
     // 2. If it's for a POS Sale, generate the sale
     let sale = null;
-    if (data.saleDto) {
+    if (data.saleDto && data.cashierId) {
       // Force payment method to be online
       data.saleDto.paymentMethod = data.provider;
-      sale = await this.salesService.checkout(user, data.saleDto);
+      sale = await this.salesService.checkout(companyId, data.saleDto, data.cashierId);
     }
 
     // 3. Record the Payment Transaction
@@ -36,6 +36,7 @@ export class PaymentsService {
         amount: data.amount,
         status: 'SUCCESS',
         saleId: sale ? sale.id : null,
+        companyId,
       }
     });
 

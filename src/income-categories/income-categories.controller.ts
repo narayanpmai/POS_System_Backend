@@ -15,30 +15,30 @@ export class IncomeCategoriesController {
   @Post()
   @ApiOperation({ summary: 'Create a new income category' })
   create(@Req() req: any, @Body() dto: CreateIncomeCategoryDto) {
-    return this.categoriesService.create(req.user, dto);
+    return this.categoriesService.create(req.user.companyId, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all income categories' })
   findAll(@Req() req: any, @Query('search') search?: string) {
-    return this.categoriesService.findAll(req.user, search);
+    return this.categoriesService.findAll(req.user.companyId, search);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific income category' })
   findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.categoriesService.findOne(req.user, id);
+    return this.categoriesService.findOne(req.user.companyId, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update income category details' })
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIncomeCategoryDto) {
-    return this.categoriesService.update(req.user, id, dto);
+    return this.categoriesService.update(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete income category' })
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.categoriesService.remove(req.user, id);
+    return this.categoriesService.remove(req.user.companyId, id);
   }
 }

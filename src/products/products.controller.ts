@@ -21,33 +21,33 @@ export class ProductsController {
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product category (Admin Only)' })
   createCategory(@Req() req: any, @Body() dto: CreateCategoryDto) {
-    return this.productsService.createCategory(req.user, dto);
+    return this.productsService.createCategory(req.user.companyId, dto);
   }
 
   @Get('categories')
   @ApiOperation({ summary: 'List all product categories' })
   findAllCategories(@Req() req: any) {
-    return this.productsService.findAllCategories(req.user);
+    return this.productsService.findAllCategories(req.user.companyId);
   }
 
   @Get('categories/:id')
   @ApiOperation({ summary: 'Get category details' })
   findCategoryById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.productsService.findCategoryById(req.user, id);
+    return this.productsService.findCategoryById(req.user.companyId, id);
   }
 
   @Put('categories/:id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update category (Admin Only)' })
   updateCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
-    return this.productsService.updateCategory(req.user, id, dto);
+    return this.productsService.updateCategory(req.user.companyId, id, dto);
   }
 
   @Delete('categories/:id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete category (Admin Only)' })
   removeCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.productsService.removeCategory(req.user, id);
+    return this.productsService.removeCategory(req.user.companyId, id);
   }
 
   // ==========================================
@@ -58,7 +58,8 @@ export class ProductsController {
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product (Admin Only)' })
   createProduct(@Body() dto: CreateProductDto, @Req() req: any) {
-    return this.productsService.createProduct(dto, req.user);
+    const userId = req.user.id;
+    return this.productsService.createProduct(req.user.companyId, dto, userId);
   }
 
   @Get()
@@ -76,33 +77,33 @@ export class ProductsController {
     @Query('categoryId') categoryId?: number,
     @Query('lowStockOnly') lowStockOnly?: boolean,
   ) {
-    return this.productsService.findAllProducts(req.user, { page, limit, search, categoryId, lowStockOnly });
+    return this.productsService.findAllProducts(req.user.companyId, { page, limit, search, categoryId, lowStockOnly });
   }
 
   @Get('barcode/:barcode')
   @ApiOperation({ summary: 'Find product by barcode scanner value' })
   findProductByBarcode(@Req() req: any, @Param('barcode') barcode: string) {
-    return this.productsService.findProductByBarcode(req.user, barcode);
+    return this.productsService.findProductByBarcode(req.user.companyId, barcode);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get product details' })
   findProductById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.productsService.findProductById(req.user, id);
+    return this.productsService.findProductById(req.user.companyId, id);
   }
 
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update product properties (Admin Only)' })
   updateProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
-    return this.productsService.updateProduct(req.user, id, dto);
+    return this.productsService.updateProduct(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete product (Admin Only)' })
   removeProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.productsService.removeProduct(req.user, id);
+    return this.productsService.removeProduct(req.user.companyId, id);
   }
 
   @Patch(':id/stock')
@@ -115,6 +116,7 @@ export class ProductsController {
     @Body('reason') reason: string,
     @Req() req: any,
   ) {
-    return this.productsService.updateStockManually(id, quantity, type, reason, req.user);
+    const userId = req.user.id;
+    return this.productsService.updateStockManually(req.user.companyId, id, quantity, type, reason, userId);
   }
 }

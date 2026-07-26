@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, ParseIntPipe, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FiscalYearsService } from './fiscal-years.service';
 import { CreateFiscalYearDto, UpdateFiscalYearDto } from './dto/fiscal-year.dto';
@@ -15,41 +15,41 @@ export class FiscalYearsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all fiscal years' })
-  findAll() {
-    return this.fiscalYearsService.findAll();
+  findAll(@Req() req: any) {
+    return this.fiscalYearsService.findAll(req.user.companyId);
   }
 
   @Get('active')
   @ApiOperation({ summary: 'Get currently active fiscal year' })
-  findActive() {
-    return this.fiscalYearsService.findActive();
+  findActive(@Req() req: any) {
+    return this.fiscalYearsService.findActive(req.user.companyId);
   }
 
   @Post()
   @Roles('Admin')
   @ApiOperation({ summary: 'Create a new fiscal year (Admin only)' })
-  create(@Body() createDto: CreateFiscalYearDto) {
-    return this.fiscalYearsService.create(createDto);
+  create(@Req() req: any, @Body() createDto: CreateFiscalYearDto) {
+    return this.fiscalYearsService.create(req.user.companyId, createDto);
   }
 
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update a fiscal year (Admin only)' })
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateFiscalYearDto) {
-    return this.fiscalYearsService.update(id, updateDto);
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateFiscalYearDto) {
+    return this.fiscalYearsService.update(req.user.companyId, id, updateDto);
   }
 
   @Put(':id/set-active')
   @Roles('Admin')
   @ApiOperation({ summary: 'Set a fiscal year as active (Admin only)' })
-  setActive(@Param('id', ParseIntPipe) id: number) {
-    return this.fiscalYearsService.setActive(id);
+  setActive(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.fiscalYearsService.setActive(req.user.companyId, id);
   }
 
   @Delete(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete a fiscal year (Admin only)' })
-  delete(@Param('id', ParseIntPipe) id: number) {
-    return this.fiscalYearsService.delete(id);
+  delete(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.fiscalYearsService.delete(req.user.companyId, id);
   }
 }

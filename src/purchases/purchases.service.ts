@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PurchasesService {
   constructor(private prisma: PrismaService) {}
 
-  async createPurchase(user: any, data: any) {
+  async createPurchase(companyId: number, data: any, userId: number) {
     // Basic logic to create purchase
     const { poNumber, supplierId, totalAmount, purchaseDate, items } = data;
     
@@ -16,9 +16,9 @@ export class PurchasesService {
           supplierId: supplierId || null,
           totalAmount,
           purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
-          userId: user.id,
-          companyId: user.companyId,
+          userId,
           status: 'RECEIVED',
+          companyId,
           items: {
             create: items.map(item => ({
               productId: item.productId,
@@ -35,7 +35,7 @@ export class PurchasesService {
       // Update inventory based on received items
       for (const item of items) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: item.productId, companyId },
           data: { 
             stock: { increment: item.quantity },
             cost: item.costPrice, // Update the last cost price
@@ -50,8 +50,8 @@ export class PurchasesService {
             quantity: item.quantity,
             reason: `Purchase ${poNumber}`,
             supplierId: supplierId || null,
-            userId: user.id,
-            companyId: user.companyId,
+            userId: userId,
+            companyId,
           }
         });
       }
@@ -60,7 +60,7 @@ export class PurchasesService {
     });
   }
 
-  async updatePurchase(user: any, id: number, data: any) {
+  async updatePurchase(companyId: number, id: number, data: any, userId: number) {
     const { poNumber, supplierId, totalAmount, purchaseDate, items } = data;
     
     return this.prisma.$transaction(async (tx) => {
@@ -70,12 +70,12 @@ export class PurchasesService {
         include: { items: true }
       });
 
-      if (!oldPurchase || oldPurchase.companyId !== user.companyId) throw new Error('Purchase not found');
+      if (!oldPurchase || oldPurchase.companyId !== companyId) throw new Error('Purchase not found');
 
       // 2. Reverse inventory for old items
       for (const oldItem of oldPurchase.items) {
         await tx.product.update({
-          where: { id: oldItem.productId },
+          where: { id: oldItem.productId, companyId },
           data: { stock: { decrement: oldItem.quantity } }
         });
 
@@ -86,8 +86,8 @@ export class PurchasesService {
             quantity: oldItem.quantity,
             reason: `Purchase Reversal/Edit ${oldPurchase.poNumber}`,
             supplierId: oldPurchase.supplierId || null,
-            userId: user.id,
-            companyId: user.companyId,
+            userId: userId,
+            companyId,
           }
         });
       }
@@ -117,10 +117,10 @@ export class PurchasesService {
         include: { items: true }
       });
 
-      // 4. Apply inventory for new items
+      // 4. Create new items and update inventory
       for (const item of items) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: item.productId, companyId },
           data: { 
             stock: { increment: item.quantity },
             cost: item.costPrice,
@@ -133,10 +133,10 @@ export class PurchasesService {
             productId: item.productId,
             type: 'STOCK_IN',
             quantity: item.quantity,
-            reason: `Purchase Edit ${poNumber}`,
+            reason: `Purchase Edit Re-stock ${poNumber}`,
             supplierId: supplierId || null,
-            userId: user.id,
-            companyId: user.companyId,
+            userId: userId,
+            companyId,
           }
         });
       }
@@ -145,9 +145,9 @@ export class PurchasesService {
     });
   }
 
-  async findAll(user: any) {
+  async findAll(companyId: number) {
     const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
-    const where: any = { companyId: user.companyId };
+    const where: any = { companyId };
     if (activeFy) {
       where.purchaseDate = {
         gte: activeFy.startDate,

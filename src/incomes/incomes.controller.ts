@@ -15,7 +15,7 @@ export class IncomesController {
   @Post()
   @ApiOperation({ summary: 'Log a new income' })
   create(@Req() req: any, @Body() dto: CreateIncomeDto) {
-    return this.incomesService.create(req.user, dto);
+    return this.incomesService.create(req.user.companyId, dto);
   }
 
   @Get()
@@ -25,24 +25,24 @@ export class IncomesController {
     @Query('search') search?: string,
     @Query('category') category?: string,
   ) {
-    return this.incomesService.findAll(req.user, search, category);
+    return this.incomesService.findAll(req.user.companyId, search, category);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific income' })
   findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.incomesService.findOne(req.user, id);
+    return this.incomesService.findOne(req.user.companyId, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update logged income' })
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIncomeDto) {
-    return this.incomesService.update(req.user, id, dto);
+    return this.incomesService.update(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete income' })
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.incomesService.remove(req.user, id);
+    return this.incomesService.remove(req.user.companyId, id);
   }
 }

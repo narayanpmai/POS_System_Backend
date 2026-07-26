@@ -22,6 +22,8 @@ import { AccountingModule } from './accounting/accounting.module';
 import { CrmModule } from './crm/crm.module';
 import { AiModule } from './ai/ai.module';
 import { PaymentsModule } from './payments/payments.module';
+import { SalesReturnsModule } from './sales-returns/sales-returns.module';
+import { PurchaseReturnsModule } from './purchase-returns/purchase-returns.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { PaymentsModule } from './payments/payments.module';
     CrmModule,
     AiModule,
     PaymentsModule,
+    SalesReturnsModule,
+    PurchaseReturnsModule,
   ],
   controllers: [],
   providers: [],

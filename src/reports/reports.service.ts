@@ -5,8 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
-  async getDashboardSummary(user: any, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
+  async getDashboardSummary(companyId: number) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -16,26 +15,26 @@ export class ReportsService {
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
     const globalDateFilter = activeFy ? { gte: activeFy.startDate, lte: activeFy.endDate } : undefined;
 
     // 1. Sales summaries (Daily, Weekly, Monthly, Total)
     const [dailySales, weeklySales, monthlySales, totalSalesSum] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { companyId: targetCompanyId, createdAt: { gte: today } },
+        where: { createdAt: { gte: today }, companyId },
         _sum: { totalAmount: true },
         _count: { id: true },
       }),
       this.prisma.sale.aggregate({
-        where: { companyId: targetCompanyId, createdAt: { gte: startOfWeek } },
+        where: { createdAt: { gte: startOfWeek }, companyId },
         _sum: { totalAmount: true },
       }),
       this.prisma.sale.aggregate({
-        where: { companyId: targetCompanyId, createdAt: { gte: startOfMonth } },
+        where: { createdAt: { gte: startOfMonth }, companyId },
         _sum: { totalAmount: true },
       }),
       this.prisma.sale.aggregate({
-        where: globalDateFilter ? { companyId: targetCompanyId, createdAt: globalDateFilter } : { companyId: targetCompanyId },
+        where: globalDateFilter ? { createdAt: globalDateFilter, companyId } : { companyId },
         _sum: { totalAmount: true, taxAmount: true, discountAmount: true },
         _count: { id: true },
       }),
@@ -43,7 +42,7 @@ export class ReportsService {
 
     // 2. Total Costs to calculate Net Profits
     const totalSaleItemsCost = await this.prisma.saleItem.findMany({
-      where: globalDateFilter ? { sale: { companyId: targetCompanyId, createdAt: globalDateFilter } } : { sale: { companyId: targetCompanyId } },
+      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, companyId } } : { sale: { companyId } },
       select: {
         quantity: true,
         cost: true,
@@ -60,28 +59,17 @@ export class ReportsService {
     const netProfit = totalRevenue - totalCost;
 
     // 3. Low stock inventory alerts count
-    const lowStockAlerts = await this.prisma.product.findMany({
-      where: {
-        companyId: targetCompanyId,
-        stock: {
-          lte: this.prisma.product.fields.minStockAlert,
-        },
-      },
+    const allProducts = await this.prisma.product.findMany({
+      where: { companyId },
       include: { category: true },
-      take: 5,
     });
-    const lowStockCount = await this.prisma.product.count({
-      where: {
-        companyId: targetCompanyId,
-        stock: {
-          lte: this.prisma.product.fields.minStockAlert,
-        },
-      },
-    });
+    
+    const lowStockAlerts = allProducts.filter(p => p.stock <= p.minStockAlert).slice(0, 5);
+    const lowStockCount = allProducts.filter(p => p.stock <= p.minStockAlert).length;
 
     // 4. Top Selling Products
     const saleItems = await this.prisma.saleItem.findMany({
-      where: globalDateFilter ? { sale: { companyId: targetCompanyId, createdAt: globalDateFilter } } : { sale: { companyId: targetCompanyId } },
+      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, companyId } } : { sale: { companyId } },
       include: { product: true },
     });
 
@@ -101,7 +89,7 @@ export class ReportsService {
 
     // 5. Recent Sales Transactions
     const recentTransactions = await this.prisma.sale.findMany({
-      where: globalDateFilter ? { companyId: targetCompanyId, createdAt: globalDateFilter } : { companyId: targetCompanyId },
+      where: globalDateFilter ? { createdAt: globalDateFilter, companyId } : { companyId },
       include: {
         customer: true,
         cashier: { select: { name: true } },
@@ -128,13 +116,12 @@ export class ReportsService {
     };
   }
 
-  async getSalesAnalytics(user: any, startDateStr?: string, endDateStr?: string, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
+  async getSalesAnalytics(companyId: number, startDateStr?: string, endDateStr?: string) {
     let end = endDateStr ? new Date(endDateStr) : new Date();
     let start = startDateStr ? new Date(startDateStr) : new Date();
     
     if (!startDateStr && !endDateStr) {
-      const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+      const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
       if (activeFy) {
         const today = new Date();
         if (today > activeFy.endDate) {
@@ -157,7 +144,7 @@ export class ReportsService {
 
     const sales = await this.prisma.sale.findMany({
       where: {
-        companyId: targetCompanyId,
+        companyId,
         createdAt: {
           gte: start,
           lte: end,
@@ -229,14 +216,13 @@ export class ReportsService {
     };
   }
 
-  async getFinancialReport(user: any, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
+  async getFinancialReport(companyId: number) {
     const sales = await this.prisma.sale.findMany({
-      where: { companyId: targetCompanyId },
+      where: { companyId },
       include: { items: true }
     });
     const expenses = await this.prisma.expense.findMany({
-      where: { companyId: targetCompanyId }
+      where: { companyId }
     });
 
     const getFiscalYear = (date: Date): string => {
@@ -335,10 +321,9 @@ export class ReportsService {
     };
   }
 
-  async getInventoryReport(user: any, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
+  async getInventoryReport(companyId: number) {
     const products = await this.prisma.product.findMany({
-      where: { companyId: targetCompanyId },
+      where: { companyId },
       include: {
         category: true,
         _count: {
@@ -360,6 +345,7 @@ export class ReportsService {
         isLowStock,
         price: p.price,
         cost: p.cost,
+        unit: p.unit,
         valuation: Number((p.stock * p.cost).toFixed(2)),
         retailValuation: Number((p.stock * p.price).toFixed(2)),
       };
@@ -377,8 +363,7 @@ export class ReportsService {
     };
   }
 
-  async getDailySummary(user: any, startDateStr?: string, endDateStr?: string, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
+  async getDailySummary(companyId: number, startDateStr?: string, endDateStr?: string) {
     const end = endDateStr ? new Date(endDateStr) : new Date();
     const start = startDateStr ? new Date(startDateStr) : new Date();
     
@@ -393,7 +378,7 @@ export class ReportsService {
     const [sales, expenses, incomes, purchases] = await Promise.all([
       this.prisma.sale.findMany({
         where: {
-          companyId: targetCompanyId,
+          companyId,
           createdAt: { gte: start, lte: end }
         },
         include: {
@@ -403,21 +388,21 @@ export class ReportsService {
       }),
       this.prisma.expense.findMany({
         where: {
-          companyId: targetCompanyId,
+          companyId,
           date: { gte: start, lte: end }
         },
         orderBy: { date: 'desc' }
       }),
       this.prisma.income.findMany({
         where: {
-          companyId: targetCompanyId,
+          companyId,
           date: { gte: start, lte: end }
         },
         orderBy: { date: 'desc' }
       }),
       this.prisma.purchase.findMany({
         where: {
-          companyId: targetCompanyId,
+          companyId,
           purchaseDate: { gte: start, lte: end }
         },
         orderBy: { purchaseDate: 'desc' }
@@ -506,15 +491,14 @@ export class ReportsService {
     };
   }
 
-  async getClosingStock(user: any, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+  async getClosingStock(companyId: number) {
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
     if (!activeFy) {
       return { products: [], totalValue: 0 };
     }
 
     const products = await this.prisma.product.findMany({
-      where: { companyId: targetCompanyId },
+      where: { companyId },
       select: { id: true, name: true, SKU: true, cost: true, price: true }
     });
 
@@ -554,9 +538,8 @@ export class ReportsService {
     };
   }
 
-  async getClosingBalance(user: any, queriedCompanyId?: number) {
-    const targetCompanyId = (user.role.name === 'Super Admin' && queriedCompanyId) ? queriedCompanyId : user.companyId;
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+  async getClosingBalance(companyId: number) {
+    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
     if (!activeFy) {
       return { openingBalance: 0, totalIncome: 0, totalExpenses: 0, closingBalance: 0 };
     }
@@ -564,19 +547,19 @@ export class ReportsService {
     // 1. Opening Balance (All time before activeFy.startDate)
     const [pastSales, pastExpenses, pastIncomes, pastPurchases] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { companyId: targetCompanyId, createdAt: { lt: activeFy.startDate } },
+        where: { companyId, createdAt: { lt: activeFy.startDate } },
         _sum: { totalAmount: true }
       }),
       this.prisma.expense.aggregate({
-        where: { companyId: targetCompanyId, date: { lt: activeFy.startDate } },
+        where: { companyId, date: { lt: activeFy.startDate } },
         _sum: { amount: true }
       }),
       this.prisma.income.aggregate({
-        where: { companyId: targetCompanyId, date: { lt: activeFy.startDate } },
+        where: { companyId, date: { lt: activeFy.startDate } },
         _sum: { amount: true }
       }),
       this.prisma.purchase.aggregate({
-        where: { companyId: targetCompanyId, purchaseDate: { lt: activeFy.startDate } },
+        where: { companyId, purchaseDate: { lt: activeFy.startDate } },
         _sum: { totalAmount: true }
       })
     ]);
@@ -588,19 +571,19 @@ export class ReportsService {
     // 2. Current Year Activity
     const [fySales, fyExpenses, fyIncomes, fyPurchases] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { companyId: targetCompanyId, createdAt: { gte: activeFy.startDate, lte: activeFy.endDate } },
+        where: { companyId, createdAt: { gte: activeFy.startDate, lte: activeFy.endDate } },
         _sum: { totalAmount: true }
       }),
       this.prisma.expense.aggregate({
-        where: { companyId: targetCompanyId, date: { gte: activeFy.startDate, lte: activeFy.endDate } },
+        where: { companyId, date: { gte: activeFy.startDate, lte: activeFy.endDate } },
         _sum: { amount: true }
       }),
       this.prisma.income.aggregate({
-        where: { companyId: targetCompanyId, date: { gte: activeFy.startDate, lte: activeFy.endDate } },
+        where: { companyId, date: { gte: activeFy.startDate, lte: activeFy.endDate } },
         _sum: { amount: true }
       }),
       this.prisma.purchase.aggregate({
-        where: { companyId: targetCompanyId, purchaseDate: { gte: activeFy.startDate, lte: activeFy.endDate } },
+        where: { companyId, purchaseDate: { gte: activeFy.startDate, lte: activeFy.endDate } },
         _sum: { totalAmount: true }
       })
     ]);

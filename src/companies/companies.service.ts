@@ -34,73 +34,65 @@ export class CompaniesService {
       throw new BadRequestException('Admin email and password are required');
     }
 
-    // Note: Email uniqueness is now scoped per company (@@unique([email, companyId]))
-    // The transaction's try-catch will handle any conflicts
+    // Check if the admin email is already in use
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: data.adminEmail }
+    });
+    
+    if (existingUser) {
+      throw new BadRequestException('A user with this admin email already exists.');
+    }
 
-    // Get Admin role (upsert/create if missing)
-    let adminRole = await this.prisma.role.findUnique({
+    // Get Admin role
+    const adminRole = await this.prisma.role.findUnique({
       where: { name: 'Admin' }
     });
 
     if (!adminRole) {
-      adminRole = await this.prisma.role.create({
-        data: { name: 'Admin', description: 'Administrator privileges' }
-      });
+      throw new BadRequestException('Admin role not found in the system');
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(data.adminPassword, salt);
 
     // Use a transaction to ensure all related records are created together
-    try {
-      return await this.prisma.$transaction(async (prisma) => {
-        // 1. Create the Company
-        const company = await prisma.company.create({
-          data: {
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            address: data.address,
-          },
-        });
-
-        // 2. Create the StoreSetting for the Company
-        await prisma.storeSetting.create({
-          data: {
-            companyId: company.id,
-            storeName: company.name,
-            address: company.address || '',
-            phone: company.phone || '',
-            email: company.email || '',
-            currencySymbol: 'Rs.',
-          },
-        });
-
-        // 3. Create the Admin User
-        await prisma.user.create({
-          data: {
-            email: data.adminEmail,
-            password: hashedPassword,
-            name: data.adminName || 'Admin User',
-            roleId: adminRole.id,
-            companyId: company.id,
-            active: true,
-          },
-        });
-
-        return company;
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Create the Company
+      const company = await prisma.company.create({
+        data: {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+        },
       });
-    } catch (error: any) {
-      // Handle Prisma unique constraint violations
-      if (error.code === 'P2002') {
-        const target = error.meta?.target;
-        if (target?.includes('email')) {
-          throw new BadRequestException('This email is already registered. Please use a different email.');
-        }
-        throw new BadRequestException(`A record with this data already exists (${target?.join(', ') || 'unique constraint'}).`);
-      }
-      throw new BadRequestException(error.message || 'Failed to create company. Please try again.');
-    }
+
+      // 2. Create the StoreSetting for the Company
+      await prisma.storeSetting.create({
+        data: {
+          companyId: company.id,
+          storeName: company.name,
+          address: company.address || '',
+          phone: company.phone || '',
+          email: company.email || '',
+          currencySymbol: 'Rs.',
+        },
+      });
+
+      // 3. Create the Admin User
+      await prisma.user.create({
+        data: {
+          email: data.adminEmail,
+          password: hashedPassword,
+          name: data.adminName || 'Admin User',
+          roleId: adminRole.id,
+          companyId: company.id,
+          active: true,
+        },
+      });
+
+      return company;
+    });
   }
 
   async update(id: number, data: any) {
@@ -109,5 +101,30 @@ export class CompaniesService {
       where: { id },
       data,
     });
+  }
+
+  async deleteCompany(id: number) {
+    if (id === 1) {
+      throw new BadRequestException('Cannot delete or deactivate the Super Admin (default) company.');
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id } });
+    if (!company) {
+      throw new NotFoundException('Company not found');
+    }
+
+    // Soft delete / deactivate the company instead of hard deleting
+    await this.prisma.company.update({
+      where: { id },
+      data: { isActive: false }
+    });
+
+    // Also deactivate all users of this company so they cannot login
+    await this.prisma.user.updateMany({
+      where: { companyId: id },
+      data: { active: false }
+    });
+
+    return { success: true, message: 'Company deactivated successfully. No data was permanently deleted.' };
   }
 }

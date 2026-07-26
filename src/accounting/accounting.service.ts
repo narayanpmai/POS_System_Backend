@@ -5,18 +5,20 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AccountingService {
   constructor(private prisma: PrismaService) {}
 
-  async getAccounts() {
+  async getAccounts(companyId: number) {
     return this.prisma.account.findMany({
+      where: { companyId },
       orderBy: { code: 'asc' },
     });
   }
 
-  async createAccount(data: any) {
-    return this.prisma.account.create({ data });
+  async createAccount(companyId: number, data: any) {
+    return this.prisma.account.create({ data: { ...data, companyId } });
   }
 
-  async getJournalEntries() {
+  async getJournalEntries(companyId: number) {
     return this.prisma.journalEntry.findMany({
+      where: { companyId },
       include: {
         lines: {
           include: { account: true }
@@ -26,7 +28,7 @@ export class AccountingService {
     });
   }
 
-  async createJournalEntry(data: { description: string, referenceNo?: string, lines: { accountId: number, debit: number, credit: number, description?: string }[] }) {
+  async createJournalEntry(companyId: number, data: { description: string, referenceNo?: string, lines: { accountId: number, debit: number, credit: number, description?: string }[] }) {
     // Validate balanced entry
     const totalDebit = data.lines.reduce((sum, line) => sum + line.debit, 0);
     const totalCredit = data.lines.reduce((sum, line) => sum + line.credit, 0);
@@ -39,20 +41,21 @@ export class AccountingService {
       data: {
         description: data.description,
         referenceNo: data.referenceNo,
+        companyId,
         lines: {
           create: data.lines.map(line => ({
             accountId: line.accountId,
             debit: line.debit,
             credit: line.credit,
-            description: line.description
+            description: line.description,
           }))
         }
       }
     });
   }
 
-  async getTrialBalance() {
-    const accounts = await this.getAccounts();
+  async getTrialBalance(companyId: number) {
+    const accounts = await this.getAccounts(companyId);
     const balances = await Promise.all(accounts.map(async (acc) => {
       const lines = await this.prisma.journalEntryLine.findMany({
         where: { accountId: acc.id }

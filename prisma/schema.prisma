@@ -41,12 +41,13 @@ model Company {
   accounts              Account[]
   journalEntries        JournalEntry[]
   purchaseReturns       PurchaseReturn[]
+  saleReturns           SaleReturn[]
   PaymentTransaction    PaymentTransaction[]
 }
 
 model User {
   id                    Int                    @id @default(autoincrement())
-  email                 String
+  email                 String                 @unique
   password              String
   name                  String
   roleId                Int
@@ -61,8 +62,6 @@ model User {
   purchases             Purchase[]
   companyId             Int                    @default(1)
   company               Company                @relation(fields: [companyId], references: [id])
-
-  @@unique([email, companyId])
 }
 
 model Role {
@@ -88,6 +87,7 @@ model Customer {
   rewardPointHistories RewardPointHistory[]
   companyId            Int                  @default(1)
   company              Company              @relation(fields: [companyId], references: [id])
+  saleReturns          SaleReturn[]
 
   @@unique([phone, companyId])
   @@unique([email, companyId])
@@ -130,7 +130,7 @@ model Product {
   description           String?
   price                 Float // Selling price
   cost                  Float // Buying/Cost price
-  stock                 Int                    @default(0)
+  stock                 Float                    @default(0)
   minStockAlert         Int                    @default(5)
   unit                  String                 @default("pcs") // Measurement Unit
   categoryId            Int
@@ -187,15 +187,16 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id              Int      @id @default(autoincrement())
-  purchaseId      Int
-  purchase        Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  productId       Int
-  product         Product  @relation(fields: [productId], references: [id])
-  quantity        Int
-  measurementUnit String   @default("pcs") // Measurement Unit at time of purchase
-  costPrice       Float // cost per unit at the time of purchase
-  total           Float
+  id                  Int                  @id @default(autoincrement())
+  purchaseId          Int
+  purchase            Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId           Int
+  product             Product              @relation(fields: [productId], references: [id])
+  quantity            Float
+  measurementUnit     String               @default("pcs") // Measurement Unit at time of purchase
+  costPrice           Float // cost per unit at the time of purchase
+  total               Float
+  purchaseReturnItems PurchaseReturnItem[]
 }
 
 model InventoryTransaction {
@@ -203,7 +204,7 @@ model InventoryTransaction {
   productId  Int
   product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   type       String // "STOCK_IN", "STOCK_OUT"
-  quantity   Int
+  quantity   Float
   reason     String? // e.g. "Purchase", "Sale", "Damage", "Return"
   supplierId Int?
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
@@ -232,21 +233,23 @@ model Sale {
   companyId          Int                 @default(1)
   company            Company             @relation(fields: [companyId], references: [id])
   PaymentTransaction PaymentTransaction?
+  saleReturns        SaleReturn[]
 
   @@unique([invoiceNo, companyId])
 }
 
 model SaleItem {
-  id        Int     @id @default(autoincrement())
-  saleId    Int
-  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  price     Float // Selling price at the time of sale
-  cost      Float // Product cost at the time of sale (for profit reports)
-  taxAmount Float
-  total     Float
+  id              Int              @id @default(autoincrement())
+  saleId          Int
+  sale            Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product          @relation(fields: [productId], references: [id])
+  quantity        Float
+  price           Float // Selling price at the time of sale
+  cost            Float // Product cost at the time of sale (for profit reports)
+  taxAmount       Float
+  total           Float
+  saleReturnItems SaleReturnItem[]
 }
 
 model Shift {
@@ -316,7 +319,7 @@ model ExpenseCategory {
 
 model FiscalYear {
   id        Int      @id @default(autoincrement())
-  name      String   @unique // e.g. "2080/081"
+  name      String // e.g. "2080/081"
   startDate DateTime
   endDate   DateTime
   isActive  Boolean  @default(false)
@@ -324,6 +327,8 @@ model FiscalYear {
   updatedAt DateTime @updatedAt
   companyId Int      @default(1)
   company   Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([name, companyId])
 }
 
 model Income {
@@ -432,18 +437,59 @@ model JournalEntryLine {
 // =========================
 
 model PurchaseReturn {
-  id          Int      @id @default(autoincrement())
-  returnNo    String   @unique
+  id          Int                  @id @default(autoincrement())
+  returnNo    String               @unique
   purchaseId  Int
-  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  purchase    Purchase             @relation(fields: [purchaseId], references: [id])
   supplierId  Int
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplier    Supplier             @relation(fields: [supplierId], references: [id])
   reason      String?
   totalAmount Float
-  returnDate  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  companyId   Int      @default(1)
-  company     Company  @relation(fields: [companyId], references: [id])
+  returnDate  DateTime             @default(now())
+  createdAt   DateTime             @default(now())
+  companyId   Int                  @default(1)
+  company     Company              @relation(fields: [companyId], references: [id])
+  items       PurchaseReturnItem[]
+}
+
+model PurchaseReturnItem {
+  id               Int            @id @default(autoincrement())
+  purchaseReturnId Int
+  purchaseReturn   PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  purchaseItemId   Int
+  purchaseItem     PurchaseItem   @relation(fields: [purchaseItemId], references: [id])
+  quantity         Float
+  refundAmount     Float
+}
+
+// =========================
+// SALES ENHANCEMENTS
+// =========================
+
+model SaleReturn {
+  id          Int              @id @default(autoincrement())
+  returnNo    String           @unique
+  saleId      Int
+  sale        Sale             @relation(fields: [saleId], references: [id])
+  customerId  Int?
+  customer    Customer?        @relation(fields: [customerId], references: [id])
+  reason      String?
+  totalAmount Float
+  returnDate  DateTime         @default(now())
+  createdAt   DateTime         @default(now())
+  companyId   Int              @default(1)
+  company     Company          @relation(fields: [companyId], references: [id])
+  items       SaleReturnItem[]
+}
+
+model SaleReturnItem {
+  id           Int        @id @default(autoincrement())
+  saleReturnId Int
+  saleReturn   SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  saleItemId   Int
+  saleItem     SaleItem   @relation(fields: [saleItemId], references: [id])
+  quantity     Float
+  refundAmount Float
 }
 
 // =========================
