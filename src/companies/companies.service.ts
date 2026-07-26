@@ -6,8 +6,10 @@ import * as bcrypt from 'bcrypt';
 export class CompaniesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(includeInactive = false) {
+    const where = includeInactive ? {} : { isActive: true };
     return this.prisma.company.findMany({
+      where,
       orderBy: { id: 'asc' },
     });
   }
@@ -126,5 +128,15 @@ export class CompaniesService {
     });
 
     return { success: true, message: 'Company deactivated successfully. No data was permanently deleted.' };
+  }
+
+  async deleteCompanyPermanently(id: number) {
+    if (id === 1) {
+      throw new BadRequestException('Cannot permanently delete the default KoseliGhar company.');
+    }
+    await this.prisma.user.deleteMany({ where: { companyId: id } });
+    await this.prisma.fiscalYear.deleteMany({ where: { companyId: id } });
+    await this.prisma.company.delete({ where: { id } });
+    return { success: true, message: 'Company permanently deleted from database.' };
   }
 }

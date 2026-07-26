@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Delete, Param, UseGuards, UnauthorizedException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Delete, Param, Query, UseGuards, UnauthorizedException, Req } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -11,8 +11,8 @@ export class CompaniesController {
 
   @Get()
   @Roles('Super Admin')
-  async findAll(@Req() req: any) {
-    return this.companiesService.findAll();
+  async findAll(@Req() req: any, @Query('includeInactive') includeInactive?: string) {
+    return this.companiesService.findAll(includeInactive === 'true');
   }
 
   @Post()
@@ -29,7 +29,10 @@ export class CompaniesController {
 
   @Delete(':id')
   @Roles('Super Admin')
-  async remove(@Req() req: any, @Param('id') id: string) {
+  async remove(@Req() req: any, @Param('id') id: string, @Query('permanent') permanent?: string) {
+    if (permanent === 'true') {
+      return this.companiesService.deleteCompanyPermanently(Number(id));
+    }
     return this.companiesService.deleteCompany(Number(id));
   }
 }
