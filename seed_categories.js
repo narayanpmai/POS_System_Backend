@@ -1,47 +1,33 @@
-process.env.DATABASE_URL = 'postgresql://posuser:pospassword@localhost:5432/smartpos_db?schema=public';
-require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const defaultCategories = [
-  'Groceries (किराना)',
-  'Dairy Products (डेरी उत्पादनहरू)',
-  'Beverages (पेय पदार्थ)',
-  'Snacks (खाजा)',
-  'Personal Care (व्यक्तिगत हेरचाह)'
-];
-
 async function main() {
-  console.log('Seeding default categories...');
-  // For companyId 1, which is the default company
-  for (const catName of defaultCategories) {
-    const exists = await prisma.category.findUnique({
-      where: {
-        name_companyId: {
-          name: catName,
-          companyId: 1
-        }
+  const categories = [
+    { name: 'Groceries (किराना)', description: 'Daily grocery items like rice, flour, oil' },
+    { name: 'Dairy Products (डेरी उत्पादनहरू)', description: 'Milk, cheese, butter, yogurt' },
+    { name: 'Beverages (पेय पदार्थ)', description: 'Juice, soda, water, tea, coffee' },
+    { name: 'Snacks (खाजा)', description: 'Biscuits, chips, noodles' },
+    { name: 'Personal Care (व्यक्तिगत हेरचाह)', description: 'Soap, shampoo, toothpaste' }
+  ];
+
+  const targetCompanyId = 3;
+
+  for (const cat of categories) {
+    await prisma.category.upsert({
+      where: { name_companyId: { name: cat.name, companyId: targetCompanyId } },
+      update: {},
+      create: {
+        name: cat.name,
+        description: cat.description,
+        companyId: targetCompanyId
       }
     });
-
-    if (!exists) {
-      await prisma.category.create({
-        data: {
-          name: catName,
-          companyId: 1,
-          description: 'Default category'
-        }
-      });
-      console.log(`Created category: ${catName}`);
-    } else {
-      console.log(`Category already exists: ${catName}`);
-    }
   }
-  console.log('Category seeding complete.');
+  console.log(`Categories seeded successfully for companyId ${targetCompanyId}.`);
 }
 
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error(e);
     process.exit(1);
   })

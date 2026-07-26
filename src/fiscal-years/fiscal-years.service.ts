@@ -6,24 +6,25 @@ import { CreateFiscalYearDto, UpdateFiscalYearDto } from './dto/fiscal-year.dto'
 export class FiscalYearsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(companyId: number) {
     return this.prisma.fiscalYear.findMany({
+      where: { companyId },
       orderBy: { startDate: 'desc' }
     });
   }
 
-  async findActive() {
+  async findActive(companyId: number) {
     return this.prisma.fiscalYear.findFirst({
-      where: { isActive: true }
+      where: { isActive: true, companyId }
     });
   }
 
-  async create(createDto: CreateFiscalYearDto) {
-    const existing = await this.prisma.fiscalYear.findUnique({ where: { name: createDto.name } });
+  async create(companyId: number, createDto: CreateFiscalYearDto) {
+    const existing = await this.prisma.fiscalYear.findUnique({ where: { name_companyId: { name: createDto.name, companyId } } });
     if (existing) throw new BadRequestException('Fiscal Year name already exists');
 
     if (createDto.isActive) {
-      await this.prisma.fiscalYear.updateMany({ data: { isActive: false } });
+      await this.prisma.fiscalYear.updateMany({ where: { companyId }, data: { isActive: false } });
     }
 
     return this.prisma.fiscalYear.create({
@@ -31,17 +32,18 @@ export class FiscalYearsService {
         name: createDto.name,
         startDate: new Date(createDto.startDate),
         endDate: new Date(createDto.endDate),
-        isActive: createDto.isActive || false
+        isActive: createDto.isActive || false,
+        companyId
       }
     });
   }
 
-  async update(id: number, updateDto: UpdateFiscalYearDto) {
+  async update(companyId: number, id: number, updateDto: UpdateFiscalYearDto) {
     const fy = await this.prisma.fiscalYear.findUnique({ where: { id } });
-    if (!fy) throw new NotFoundException('Fiscal Year not found');
+    if (!fy || fy.companyId !== companyId) throw new NotFoundException('Fiscal Year not found');
 
     if (updateDto.isActive) {
-      await this.prisma.fiscalYear.updateMany({ data: { isActive: false } });
+      await this.prisma.fiscalYear.updateMany({ where: { companyId }, data: { isActive: false } });
     }
 
     const data: any = { ...updateDto };
@@ -54,12 +56,13 @@ export class FiscalYearsService {
     });
   }
 
-  async setActive(id: number) {
+  async setActive(companyId: number, id: number) {
     const fy = await this.prisma.fiscalYear.findUnique({ where: { id } });
-    if (!fy) throw new NotFoundException('Fiscal Year not found');
+    if (!fy || fy.companyId !== companyId) throw new NotFoundException('Fiscal Year not found');
 
     // Deactivate all others
     await this.prisma.fiscalYear.updateMany({
+      where: { companyId },
       data: { isActive: false }
     });
 
@@ -70,9 +73,9 @@ export class FiscalYearsService {
     });
   }
 
-  async delete(id: number) {
+  async delete(companyId: number, id: number) {
     const fy = await this.prisma.fiscalYear.findUnique({ where: { id } });
-    if (!fy) throw new NotFoundException('Fiscal Year not found');
+    if (!fy || fy.companyId !== companyId) throw new NotFoundException('Fiscal Year not found');
     if (fy.isActive) throw new BadRequestException('Cannot delete an active Fiscal Year');
 
     return this.prisma.fiscalYear.delete({ where: { id } });

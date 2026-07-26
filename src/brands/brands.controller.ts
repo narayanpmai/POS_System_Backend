@@ -15,30 +15,30 @@ export class BrandsController {
   @Post()
   @ApiOperation({ summary: 'Create a new brand' })
   create(@Req() req: any, @Body() dto: CreateBrandDto) {
-    return this.brandsService.create(req.user, dto);
+    return this.brandsService.create(req.user.companyId, dto);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all brands' })
   findAll(@Req() req: any, @Query('search') search?: string) {
-    return this.brandsService.findAll(req.user, search);
+    return this.brandsService.findAll(req.user.companyId, search);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get details of specific brand' })
   findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.findOne(req.user, id);
+    return this.brandsService.findOne(req.user.companyId, id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update brand details' })
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBrandDto) {
-    return this.brandsService.update(req.user, id, dto);
+    return this.brandsService.update(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete brand' })
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.brandsService.remove(req.user, id);
+    return this.brandsService.remove(req.user.companyId, id);
   }
 }

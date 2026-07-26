@@ -16,17 +16,17 @@ function slugify(text: string): string {
 export class BrandsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(user: any, dto: CreateBrandDto) {
+  async create(companyId: number, dto: CreateBrandDto) {
     const slug = slugify(dto.name);
     
     // Check uniqueness
     const existing = await this.prisma.brand.findFirst({
       where: {
+        companyId,
         OR: [
           { name: dto.name },
           { slug: slug }
-        ],
-        companyId: user.companyId
+        ]
       }
     });
     if (existing) {
@@ -38,13 +38,13 @@ export class BrandsService {
         name: dto.name,
         slug,
         status: dto.status || 'ACTIVE',
-        companyId: user.companyId,
+        companyId,
       }
     });
   }
 
-  async findAll(user: any, search?: string) {
-    const where: any = { companyId: user.companyId };
+  async findAll(companyId: number, search?: string) {
+    const where: any = { companyId };
     if (search) {
       where.OR = [
         { name: { contains: search } },
@@ -57,14 +57,14 @@ export class BrandsService {
     });
   }
 
-  async findOne(user: any, id: number) {
+  async findOne(companyId: number, id: number) {
     const brand = await this.prisma.brand.findUnique({ where: { id } });
-    if (!brand || brand.companyId !== user.companyId) throw new NotFoundException('Brand not found');
+    if (!brand || brand.companyId !== companyId) throw new NotFoundException('Brand not found');
     return brand;
   }
 
-  async update(user: any, id: number, dto: UpdateBrandDto) {
-    await this.findOne(user, id);
+  async update(companyId: number, id: number, dto: UpdateBrandDto) {
+    await this.findOne(companyId, id);
     
     const data: any = { ...dto };
     if (dto.name) {
@@ -75,13 +75,13 @@ export class BrandsService {
         where: {
           AND: [
             { id: { not: id } },
+            { companyId },
             {
               OR: [
                 { name: dto.name },
                 { slug: slug }
               ]
-            },
-            { companyId: user.companyId }
+            }
           ]
         }
       });
@@ -98,8 +98,8 @@ export class BrandsService {
     });
   }
 
-  async remove(user: any, id: number) {
-    await this.findOne(user, id);
+  async remove(companyId: number, id: number) {
+    await this.findOne(companyId, id);
     
     // Check if linked to products
     const linkedProducts = await this.prisma.product.count({ where: { brandId: id } });

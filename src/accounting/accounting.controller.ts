@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { AccountingService } from './accounting.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,27 +8,27 @@ export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
   @Get('accounts')
-  getAccounts() {
-    return this.accountingService.getAccounts();
+  getAccounts(@Req() req: any) {
+    return this.accountingService.getAccounts(req.user.companyId);
   }
 
   @Post('accounts')
-  createAccount(@Body() data: any) {
-    return this.accountingService.createAccount(data);
+  createAccount(@Req() req: any, @Body() data: any) {
+    return this.accountingService.createAccount(req.user.companyId, data);
   }
 
   @Get('journal-entries')
-  getJournalEntries() {
-    return this.accountingService.getJournalEntries();
+  getJournalEntries(@Req() req: any) {
+    return this.accountingService.getJournalEntries(req.user.companyId);
   }
 
   @Post('journal-entries')
-  createJournalEntry(@Body() data: any) {
-    return this.accountingService.createJournalEntry(data);
+  createJournalEntry(@Req() req: any, @Body() data: any) {
+    return this.accountingService.createJournalEntry(req.user.companyId, data);
   }
 
   @Get('trial-balance')
-  getTrialBalance() {
-    return this.accountingService.getTrialBalance();
+  getTrialBalance(@Req() req: any) {
+    return this.accountingService.getTrialBalance(req.user.companyId);
   }
 }

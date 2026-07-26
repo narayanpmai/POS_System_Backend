@@ -1,5 +1,4 @@
 import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
-import { OptionalIntPipe } from '../common/pipes/optional-int.pipe';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -15,45 +14,40 @@ export class ReportsController {
 
   @Get('dashboard-summary')
   @ApiOperation({ summary: 'Retrieve full KPI dashboard widgets dataset' })
-  getDashboardSummary(
-    @Req() req: any,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
-  ) {
-    return this.reportsService.getDashboardSummary(req.user, companyId);
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
+  getDashboardSummary(@Req() req: any, @Query('companyId') queryCompanyId?: string) {
+    const cid = (req.user.role.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.reportsService.getDashboardSummary(cid);
   }
 
   @Get('sales')
-  @Roles('Admin')
-  @ApiOperation({ summary: 'Fetch date-ranged historical sales graphs and timelines (Admin Only)' })
+  @Roles('Admin', 'Super Admin')
+  @ApiOperation({ summary: 'Fetch date-ranged historical sales graphs and timelines' })
   @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
   getSalesAnalytics(
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
+    @Query('companyId') queryCompanyId?: string,
   ) {
-    return this.reportsService.getSalesAnalytics(req.user, startDate, endDate, companyId);
+    const cid = (req.user.role.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.reportsService.getSalesAnalytics(cid, startDate, endDate);
   }
 
   @Get('inventory-valuation')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate total asset cost valuation and stock thresholds (Admin Only)' })
-  getInventoryReport(
-    @Req() req: any,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
-  ) {
-    return this.reportsService.getInventoryReport(req.user, companyId);
+  getInventoryReport(@Req() req: any) {
+    return this.reportsService.getInventoryReport(req.user.companyId);
   }
 
   @Get('financial')
   @Roles('Admin')
   @ApiOperation({ summary: 'Comprehensive financial breakdown by Nepali Fiscal Year (Admin Only)' })
-  getFinancialReport(
-    @Req() req: any,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
-  ) {
-    return this.reportsService.getFinancialReport(req.user, companyId);
+  getFinancialReport(@Req() req: any) {
+    return this.reportsService.getFinancialReport(req.user.companyId);
   }
 
   @Get('daily-summary')
@@ -65,28 +59,21 @@ export class ReportsController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
   ) {
-    return this.reportsService.getDailySummary(req.user, startDate, endDate, companyId);
+    return this.reportsService.getDailySummary(req.user.companyId, startDate, endDate);
   }
 
   @Get('closing-stock')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate Closing Stock for Active Fiscal Year' })
-  getClosingStock(
-    @Req() req: any,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
-  ) {
-    return this.reportsService.getClosingStock(req.user, companyId);
+  getClosingStock(@Req() req: any) {
+    return this.reportsService.getClosingStock(req.user.companyId);
   }
 
   @Get('closing-balance')
   @Roles('Admin')
   @ApiOperation({ summary: 'Calculate Closing Balance for Active Fiscal Year' })
-  getClosingBalance(
-    @Req() req: any,
-    @Query('companyId', new OptionalIntPipe()) companyId?: number
-  ) {
-    return this.reportsService.getClosingBalance(req.user, companyId);
+  getClosingBalance(@Req() req: any) {
+    return this.reportsService.getClosingBalance(req.user.companyId);
   }
 }

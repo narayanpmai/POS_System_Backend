@@ -6,7 +6,7 @@ import { CreateSaleDto } from './dto/sales.dto';
 export class SalesService {
   constructor(private prisma: PrismaService) {}
 
-  async checkout(user: any, dto: CreateSaleDto) {
+  async checkout(companyId: number, dto: CreateSaleDto, cashierId: number) {
     if (dto.items.length === 0) {
       throw new BadRequestException('Cannot complete sale with empty cart');
     }
@@ -70,8 +70,7 @@ export class SalesService {
         type: 'STOCK_OUT' as const,
         quantity: itemDto.quantity,
         reason: 'POS Sale Outflow',
-        userId: user.id,
-        companyId: user.companyId,
+        userId: cashierId,
       });
     }
 
@@ -96,14 +95,14 @@ export class SalesService {
         data: {
           invoiceNo,
           customerId: dto.customerId || null,
-          cashierId: user.id,
-          companyId: user.companyId,
+          cashierId,
           subtotal: Number(subtotal.toFixed(2)),
           taxAmount: Number(taxAmount.toFixed(2)),
           discountAmount: Number(discountAmount.toFixed(2)),
           totalAmount: totalAmount,
           paymentMethod: dto.paymentMethod,
           paymentStatus: 'PAID',
+          companyId: companyId,
           items: {
             create: itemsToCreate,
           },
@@ -125,7 +124,7 @@ export class SalesService {
         const log = inventoryLogs[i];
 
         await tx.product.update({
-          where: { id: update.id },
+          where: { id: update.id, companyId },
           data: { stock: update.newStock },
         });
 
@@ -136,7 +135,7 @@ export class SalesService {
             quantity: log.quantity,
             reason: `${log.reason} - Invoice ${invoiceNo}`,
             userId: log.userId,
-            companyId: user.companyId,
+            companyId,
           },
         });
       }
@@ -146,7 +145,7 @@ export class SalesService {
         const pointsEarned = Math.floor(totalAmount / 10);
         if (pointsEarned > 0) {
           await tx.customer.update({
-            where: { id: dto.customerId },
+            where: { id: dto.customerId, companyId },
             data: {
               points: {
                 increment: pointsEarned,
@@ -154,7 +153,8 @@ export class SalesService {
               rewardPointHistories: {
                 create: {
                   points: pointsEarned,
-                  reason: `Earned from Sale Invoice ${invoiceNo}`
+                  reason: `Earned from Sale Invoice ${invoiceNo}`,
+                  companyId
                 }
               }
             },
@@ -164,7 +164,7 @@ export class SalesService {
 
       // Accounting: Generate Journal Entry
       // 1. Fetch Accounts
-      const accounts = await tx.account.findMany();
+      const accounts = await tx.account.findMany({ where: { companyId } });
       const getAccId = (code: string) => accounts.find(a => a.code === code)?.id;
 
       const cashAcc = getAccId('1000');
@@ -178,9 +178,9 @@ export class SalesService {
         
         await tx.journalEntry.create({
           data: {
+            companyId,
             referenceNo: invoiceNo,
             description: `POS Sale - ${invoiceNo}`,
-            companyId: user.companyId,
             lines: {
               create: [
                 { accountId: cashAcc, debit: totalAmount, credit: 0, description: 'Cash Received' },
@@ -198,7 +198,7 @@ export class SalesService {
     });
   }
 
-  async findAllSales(user: any, query: {
+  async findAllSales(companyId: number, query: {
     page?: number;
     limit?: number;
     search?: string;
@@ -210,7 +210,7 @@ export class SalesService {
     const limit = Math.max(1, query.limit || 10);
     const skip = (page - 1) * limit;
 
-    const where: any = { companyId: user.companyId };
+    const where: any = { companyId };
 
     if (query.search) {
       where.OR = [
@@ -232,7 +232,7 @@ export class SalesService {
         where.createdAt.lte = end;
       }
     } else {
-      const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true } });
+      const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
       if (activeFy) {
         where.createdAt = {
           gte: activeFy.startDate,
@@ -278,9 +278,9 @@ export class SalesService {
     };
   }
 
-  async findSaleById(user: any, id: number) {
+  async findSaleById(companyId: number, id: number) {
     const sale = await this.prisma.sale.findUnique({
-      where: { id },
+      where: { id, companyId },
       include: {
         customer: true,
         cashier: { select: { name: true, email: true } },
@@ -289,20 +289,20 @@ export class SalesService {
         },
       },
     });
-    if (!sale || sale.companyId !== user.companyId) throw new NotFoundException('Transaction not found');
+    if (!sale) throw new NotFoundException('Transaction not found');
     return sale;
   }
 
-  async remove(user: any, id: number) {
+  async remove(companyId: number, id: number, adminId: number) {
     const sale = await this.prisma.sale.findUnique({
-      where: { id },
+      where: { id, companyId },
       include: {
         items: { include: { product: true } },
         customer: true,
         cashier: { select: { name: true } },
       },
     });
-    if (!sale || sale.companyId !== user.companyId) throw new NotFoundException('Sale not found');
+    if (!sale) throw new NotFoundException('Sale not found');
 
     return await this.prisma.$transaction(async (tx) => {
       // 0. Save snapshot to DeletedSale log
@@ -323,15 +323,15 @@ export class SalesService {
           cashierName: sale.cashier?.name || null,
           totalAmount: sale.totalAmount,
           itemsSnapshot,
-          deletedById: user.id,
-          companyId: user.companyId,
+          deletedById: adminId,
+          companyId: sale.companyId,
         },
       });
 
       // 1. Revert inventory
       for (const item of sale.items) {
         await tx.product.update({
-          where: { id: item.productId },
+          where: { id: item.productId, companyId },
           data: { stock: { increment: item.quantity } },
         });
 
@@ -341,8 +341,8 @@ export class SalesService {
             type: 'STOCK_IN',
             quantity: item.quantity,
             reason: `Reverted Sale Deletion - Invoice ${sale.invoiceNo}`,
-            userId: user.id,
-            companyId: user.companyId,
+            userId: adminId,
+            companyId,
           },
         });
       }
@@ -363,19 +363,19 @@ export class SalesService {
     });
   }
 
-  async clearAllSales(user: any) {
+  async clearAllSales(companyId: number) {
     await this.prisma.saleItem.deleteMany({
-      where: { sale: { companyId: user.companyId } }
+      where: { sale: { companyId } }
     });
     await this.prisma.sale.deleteMany({
-      where: { companyId: user.companyId }
+      where: { companyId }
     });
     return { message: 'Sales data cleared successfully' };
   }
 
-  async getDeletedSales(user: any) {
+  async getDeletedSales(companyId: number) {
     const deletedSales = await this.prisma.deletedSale.findMany({
-      where: { companyId: user.companyId },
+      where: { companyId },
       orderBy: { deletedAt: 'desc' },
     });
     return deletedSales.map((s) => ({

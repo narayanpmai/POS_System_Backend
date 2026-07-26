@@ -13,7 +13,7 @@ export class TenantMiddleware implements NestMiddleware {
       try {
         const payloadStr = Buffer.from(token.split('.')[1], 'base64').toString();
         const payload = JSON.parse(payloadStr);
-        if (payload && payload.role !== 'Super Admin' && payload.companyId) {
+        if (payload && payload.companyId) {
           companyId = payload.companyId;
         }
       } catch (err) {

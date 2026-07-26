@@ -13,17 +13,17 @@ export class PurchasesController {
   @Post()
   @Roles('Admin')
   createPurchase(@Body() body: any, @Req() req: any) {
-    return this.purchasesService.createPurchase(req.user, body);
+    return this.purchasesService.createPurchase(req.user.companyId, body, req.user.id);
   }
 
   @Put(':id')
   @Roles('Admin')
   updatePurchase(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    return this.purchasesService.updatePurchase(req.user, +id, body);
+    return this.purchasesService.updatePurchase(req.user.companyId, +id, body, req.user.id);
   }
 
   @Get()
   findAll(@Req() req: any) {
-    return this.purchasesService.findAll(req.user);
+    return this.purchasesService.findAll(req.user.companyId);
   }
 }

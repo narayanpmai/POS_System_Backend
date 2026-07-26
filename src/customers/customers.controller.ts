@@ -16,7 +16,7 @@ export class CustomersController {
   @ApiOperation({ summary: 'Register a new customer' })
   @ApiResponse({ status: 201, description: 'Customer successfully created' })
   create(@Req() req: any, @Body() dto: CreateCustomerDto) {
-    return this.customersService.create(req.user, dto);
+    return this.customersService.create(req.user.companyId, dto);
   }
 
   @Get()
@@ -25,30 +25,30 @@ export class CustomersController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   findAll(@Req() req: any, @Query('page') page?: number, @Query('limit') limit?: number, @Query('search') search?: string) {
-    return this.customersService.findAll(req.user, { page, limit, search });
+    return this.customersService.findAll(req.user.companyId, { page, limit, search });
   }
 
   @Get('phone/:phone')
   @ApiOperation({ summary: 'Lookup customer by telephone for POS' })
   findByPhone(@Req() req: any, @Param('phone') phone: string) {
-    return this.customersService.findByPhone(req.user, phone);
+    return this.customersService.findByPhone(req.user.companyId, phone);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get customer profile and last purchases' })
-  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.customersService.findOne(req.user, id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.customersService.findOne(id);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update customer details' })
   update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCustomerDto) {
-    return this.customersService.update(req.user, id, dto);
+    return this.customersService.update(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove customer (No purchase history)' })
-  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
-    return this.customersService.remove(req.user, id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.customersService.remove(id);
   }
 }
