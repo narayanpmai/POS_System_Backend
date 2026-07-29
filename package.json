@@ -1,7 +1,7 @@
 {
-  "name": "smartpos-backend",
+  "name": "koselighar-backend",
   "version": "1.0.0",
-  "description": "Production-ready NestJS Backend for SmartPOS System",
+  "description": "Production-ready NestJS Backend for Koselighar System",
   "author": "Antigravity",
   "private": true,
   "license": "UNLICENSED",
