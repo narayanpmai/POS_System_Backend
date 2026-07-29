@@ -121,6 +121,7 @@ jobs:
         run: |
           cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env.production"
           cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
+          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/backend/.env"
           chmod 644 "$HOME/koselighar-backend/.env.production" "$HOME/koselighar-backend/.env"
           echo "✓ env files copied"
 
