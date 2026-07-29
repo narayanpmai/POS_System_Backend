@@ -1,0 +1,205 @@
+name: CI/CD for koselighar-backend (dev)
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  ci-cd:
+    runs-on: [self-hosted, hostinger]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node Environment
+        shell: bash
+        run: |
+          set +e
+
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+          nvm install --lts
+          nvm use --lts
+          nvm alias default lts/*
+
+          echo "✓ Node: $(node -v)"
+          echo "✓ NPM: $(npm -v)"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -e
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          npm install --include=dev
+          chmod -R +x node_modules/.bin || true
+
+      - name: Generate Prisma client
+        shell: bash
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
+        run: |
+          set -e
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          npx prisma generate
+
+      - name: Clean dist folder
+        shell: bash
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          rm -rf dist || true
+
+      - name: Build project
+        shell: bash
+        run: |
+          set -e
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          echo "Starting build..."
+          ./node_modules/.bin/nest build
+          echo "Build completed"
+
+      - name: Verify build output
+        shell: bash
+        run: |
+          set -e
+          if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
+            echo "❌ ERROR: dist/src/main.js not found!"
+            ls -lah dist/ || echo "dist folder not found"
+            exit 1
+          fi
+          echo "✓ Production build verified"
+          ls -lh dist/src/main.js
+
+      - name: Run tests
+        shell: bash
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          npm test || echo "No test script or tests failing - continuing for dev..."
+
+      - name: Deploy to dev directory
+        shell: bash
+        run: |
+          DEPLOY_DIR="$HOME/koselighar-backend-dev"
+          BUILD_DIR="$(pwd)"
+
+          echo "Deploying to $DEPLOY_DIR..."
+          mkdir -p "$DEPLOY_DIR"
+          rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_DIR"/
+          echo "✓ Files copied to deployment directory"
+
+      - name: Copy dev env file to deployment directory
+        shell: bash
+        run: |
+          cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env.development"
+          cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env"
+          chmod 644 "$HOME/koselighar-backend-dev/.env.development" "$HOME/koselighar-backend-dev/.env"
+          echo "✓ env files copied"
+
+      - name: Push database schema changes (dev)
+        shell: bash
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          cd "$HOME/koselighar-backend-dev"
+          
+          echo "Generating Prisma client in deployment directory..."
+          npx prisma generate
+
+          echo "Pushing database schema changes..."
+          npx prisma db push --accept-data-loss
+
+          echo "Executing database seed script..."
+          npm run prisma:seed || echo "No prisma:seed script or completed"
+
+      - name: Install production dependencies in dev deployment dir
+        shell: bash
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          cd "$HOME/koselighar-backend-dev"
+          npm install --omit=dev --ignore-scripts
+          npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
+
+      - name: Ensure uploads folder exists (dev)
+        shell: bash
+        run: |
+          UPLOAD_DIR="/home/storage-dev/koselighar"
+          mkdir -p "$UPLOAD_DIR"
+          chmod -R 775 "$UPLOAD_DIR"
+          echo "Uploads dir:"
+          ls -ld "$UPLOAD_DIR"
+
+      - name: Deploy dev with PM2 (reuse same process)
+        shell: bash
+        env:
+          APP_NAME: smartpos-backend
+        run: |
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm use --lts
+
+          cd "$HOME/koselighar-backend-dev"
+
+          if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+            pm2 reload ecosystem.config.js --only "$APP_NAME" --update-env
+          else
+            pm2 start ecosystem.config.js --only "$APP_NAME"
+          fi
+
+          # Wait up to 30 seconds for app to come online
+          MAX_ATTEMPTS=15
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            sleep 2
+            ATTEMPT=$((ATTEMPT + 1))
+
+            STATUS=$(pm2 jlist | jq -r ".[] | select(.name==\"$APP_NAME\") | .pm2_env.status" | head -n1)
+
+            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Status = $STATUS"
+
+            if [ "$STATUS" = "online" ]; then
+              echo "✓ Dev deployment successful"
+              pm2 save --force
+              exit 0
+            fi
+          done
+
+          echo "❌ Timeout: App did not come online after 30 seconds"
+          pm2 logs "$APP_NAME" --lines 100 --nostream || true
+          exit 1
+
+      - name: Deployment Summary (dev)
+        if: always()
+        shell: bash
+        run: |
+          echo "=== Final PM2 Status ==="
+          pm2 list
+          echo ""
+          echo "Application is running from:"
+          echo "$HOME/koselighar-backend-dev"
