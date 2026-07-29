@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "smartpos-backend",
+      name: "koselighar-backend",
       script: "dist/src/main.js",
       env: {
         NODE_ENV: "production",

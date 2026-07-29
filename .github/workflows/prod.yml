@@ -159,7 +159,7 @@ jobs:
       - name: Deploy prod with PM2 (reuse same process)
         shell: bash
         env:
-          APP_NAME: smartpos-backend
+          APP_NAME: koselighar-backend
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
