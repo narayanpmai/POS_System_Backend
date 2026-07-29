@@ -110,13 +110,26 @@ jobs:
           rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_DIR"/
           echo "✓ Files copied to deployment directory"
 
-      - name: Copy prod env file to deployment directory
+      - name: Copy env file to deployment directory
         shell: bash
         run: |
-          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env.production"
-          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
-          chmod 644 "$HOME/koselighar-backend/.env.production" "$HOME/koselighar-backend/.env"
-          echo "✓ env files copied"
+          ENV_DIR="/home/envs/koselighar"
+          DEPLOY_DIR="$HOME/koselighar-backend"
+
+          if [ -f "$ENV_DIR/.env.production" ]; then
+            cp "$ENV_DIR/.env.production" "$DEPLOY_DIR/.env"
+            echo "✓ Copied .env.production to $DEPLOY_DIR/.env"
+          elif [ -f "$ENV_DIR/.env.development" ]; then
+            cp "$ENV_DIR/.env.development" "$DEPLOY_DIR/.env"
+            echo "✓ Copied .env.development to $DEPLOY_DIR/.env (fallback)"
+          elif [ -f "$ENV_DIR/.env" ]; then
+            cp "$ENV_DIR/.env" "$DEPLOY_DIR/.env"
+            echo "✓ Copied .env to $DEPLOY_DIR/.env"
+          else
+            echo "⚠️ Warning: No env file found in $ENV_DIR"
+          fi
+
+          chmod 644 "$DEPLOY_DIR/.env" 2>/dev/null || true
 
       - name: Push database schema changes (prod)
         shell: bash
