@@ -42,7 +42,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           npm install --include=dev
           chmod -R +x node_modules/.bin || true
 
@@ -56,7 +55,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           npx prisma generate
 
       - name: Clean dist folder
@@ -66,7 +64,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           rm -rf dist || true
 
       - name: Build project
@@ -78,7 +75,6 @@ jobs:
           nvm use --lts
 
           echo "Starting build..."
-          cd backend
           ./node_modules/.bin/nest build
           echo "Build completed"
 
@@ -86,7 +82,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          cd backend
           if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
             echo "❌ ERROR: dist/src/main.js not found!"
             ls -lah dist/ || echo "dist folder not found"
@@ -102,10 +97,9 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
-          npm test || echo "No test script or tests failing - continuing for dev..."
+          npm test || echo "No test script or tests failing - continuing for prod..."
 
-      - name: Deploy to dev directory
+      - name: Deploy to prod directory
         shell: bash
         run: |
           DEPLOY_DIR="$HOME/koselighar-backend"
@@ -116,23 +110,22 @@ jobs:
           rsync -a --delete "$BUILD_DIR"/ "$DEPLOY_DIR"/
           echo "✓ Files copied to deployment directory"
 
-      - name: Copy dev env file to deployment directory
+      - name: Copy prod env file to deployment directory
         shell: bash
         run: |
           cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env.production"
           cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/.env"
-          cp /home/envs/koselighar/.env.production "$HOME/koselighar-backend/backend/.env"
           chmod 644 "$HOME/koselighar-backend/.env.production" "$HOME/koselighar-backend/.env"
           echo "✓ env files copied"
 
-      - name: Push database schema changes (dev)
+      - name: Push database schema changes (prod)
         shell: bash
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend/backend"
+          cd "$HOME/koselighar-backend"
           
           echo "Generating Prisma client in deployment directory..."
           npx prisma generate
@@ -140,21 +133,21 @@ jobs:
           echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
 
-          echo "Executing database seed.js..."
-          npm run prisma:seed
+          echo "Executing database seed script..."
+          npm run prisma:seed || echo "No prisma:seed script or completed"
 
-      - name: Install production dependencies in dev deployment dir
+      - name: Install production dependencies in prod deployment dir
         shell: bash
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend/backend"
+          cd "$HOME/koselighar-backend"
           npm install --omit=dev --ignore-scripts
           npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
 
-      - name: Ensure uploads folder exists (dev)
+      - name: Ensure uploads folder exists (prod)
         shell: bash
         run: |
           UPLOAD_DIR="/home/storage/koselighar"
@@ -163,7 +156,7 @@ jobs:
           echo "Uploads dir:"
           ls -ld "$UPLOAD_DIR"
 
-      - name: Deploy dev with PM2 (reuse same process)
+      - name: Deploy prod with PM2 (reuse same process)
         shell: bash
         env:
           APP_NAME: smartpos-backend
@@ -193,7 +186,7 @@ jobs:
             echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Status = $STATUS"
 
             if [ "$STATUS" = "online" ]; then
-              echo "✓ Dev deployment successful"
+              echo "✓ Prod deployment successful"
               pm2 save --force
               exit 0
             fi
@@ -203,7 +196,7 @@ jobs:
           pm2 logs "$APP_NAME" --lines 100 --nostream || true
           exit 1
 
-      - name: Deployment Summary (dev)
+      - name: Deployment Summary (prod)
         if: always()
         shell: bash
         run: |

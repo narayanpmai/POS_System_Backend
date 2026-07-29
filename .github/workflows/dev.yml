@@ -40,7 +40,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           npm install --include=dev
           chmod -R +x node_modules/.bin || true
 
@@ -54,7 +53,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           npx prisma generate
 
       - name: Clean dist folder
@@ -64,7 +62,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           rm -rf dist || true
 
       - name: Build project
@@ -76,7 +73,6 @@ jobs:
           nvm use --lts
 
           echo "Starting build..."
-          cd backend
           ./node_modules/.bin/nest build
           echo "Build completed"
 
@@ -84,7 +80,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          cd backend
           if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
             echo "❌ ERROR: dist/src/main.js not found!"
             ls -lah dist/ || echo "dist folder not found"
@@ -100,7 +95,6 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd backend
           npm test || echo "No test script or tests failing - continuing for dev..."
 
       - name: Deploy to dev directory
@@ -119,7 +113,6 @@ jobs:
         run: |
           cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env.development"
           cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/.env"
-          cp /home/envs/koselighar/.env.development "$HOME/koselighar-backend-dev/backend/.env"
           chmod 644 "$HOME/koselighar-backend-dev/.env.development" "$HOME/koselighar-backend-dev/.env"
           echo "✓ env files copied"
 
@@ -130,7 +123,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend-dev/backend"
+          cd "$HOME/koselighar-backend-dev"
           
           echo "Generating Prisma client in deployment directory..."
           npx prisma generate
@@ -138,8 +131,8 @@ jobs:
           echo "Pushing database schema changes..."
           npx prisma db push --accept-data-loss
 
-          echo "Executing database seed.js..."
-          npm run prisma:seed
+          echo "Executing database seed script..."
+          npm run prisma:seed || echo "No prisma:seed script or completed"
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
@@ -148,7 +141,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend-dev/backend"
+          cd "$HOME/koselighar-backend-dev"
           npm install --omit=dev --ignore-scripts
           npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
 
