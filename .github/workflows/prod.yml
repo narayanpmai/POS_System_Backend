@@ -118,18 +118,21 @@ jobs:
 
           if [ -f "$ENV_DIR/.env.production" ]; then
             cp "$ENV_DIR/.env.production" "$DEPLOY_DIR/.env"
+            cp "$ENV_DIR/.env.production" "$DEPLOY_DIR/.env.production" 2>/dev/null || true
             echo "✓ Copied .env.production to $DEPLOY_DIR/.env"
           elif [ -f "$ENV_DIR/.env.development" ]; then
             cp "$ENV_DIR/.env.development" "$DEPLOY_DIR/.env"
-            echo "✓ Copied .env.development to $DEPLOY_DIR/.env (fallback)"
+            cp "$ENV_DIR/.env.development" "$DEPLOY_DIR/.env.development" 2>/dev/null || true
+            echo "✓ Copied .env.development to $DEPLOY_DIR/.env and $DEPLOY_DIR/.env.development"
           elif [ -f "$ENV_DIR/.env" ]; then
             cp "$ENV_DIR/.env" "$DEPLOY_DIR/.env"
+            cp "$ENV_DIR/.env" "$DEPLOY_DIR/.env.development" 2>/dev/null || true
             echo "✓ Copied .env to $DEPLOY_DIR/.env"
           else
             echo "⚠️ Warning: No env file found in $ENV_DIR"
           fi
 
-          chmod 644 "$DEPLOY_DIR/.env" 2>/dev/null || true
+          chmod 644 "$DEPLOY_DIR/.env"* 2>/dev/null || true
 
       - name: Push database schema changes (prod)
         shell: bash
