@@ -25,17 +25,17 @@ async function bootstrap() {
 
   // Setup Swagger API Documentation
   const config = new DocumentBuilder()
-    .setTitle('SmartPOS API')
-    .setDescription('Production-Ready POS API Documentation')
+    .setTitle('Koselighar API')
+    .setDescription('Production-Ready Backend API for Koselighar System')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.PORT || 5000;
+  const port = process.env.PORT || 8001;
   await app.listen(port, '0.0.0.0');
-  console.log(`SmartPOS Backend running on: http://localhost:${port}`);
+  console.log(`Koselighar Backend running on: http://localhost:${port}`);
   console.log(`API Swagger Documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();
