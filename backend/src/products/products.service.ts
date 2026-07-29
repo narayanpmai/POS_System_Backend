@@ -139,7 +139,7 @@ export class ProductsService {
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        include: { category: true },
+        include: { category: true, unitConversions: true },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -170,7 +170,7 @@ export class ProductsService {
   async findProductById(companyId: number, id: number) {
     const product = await this.prisma.product.findUnique({
       where: { id },
-      include: { category: true },
+      include: { category: true, unitConversions: true },
     });
     if (!product || product.companyId !== companyId) throw new NotFoundException('Product not found');
     return product;
@@ -179,7 +179,7 @@ export class ProductsService {
   async findProductByBarcode(companyId: number, barcode: string) {
     const product = await this.prisma.product.findUnique({
       where: { barcode_companyId: { barcode, companyId } },
-      include: { category: true },
+      include: { category: true, unitConversions: true },
     });
     if (!product) throw new NotFoundException(`Product with barcode ${barcode} not found`);
     return product;

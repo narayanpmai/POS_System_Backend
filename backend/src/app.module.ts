@@ -24,6 +24,7 @@ import { AiModule } from './ai/ai.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SalesReturnsModule } from './sales-returns/sales-returns.module';
 import { PurchaseReturnsModule } from './purchase-returns/purchase-returns.module';
+import { UnitConversionsModule } from './unit-conversions/unit-conversions.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { PurchaseReturnsModule } from './purchase-returns/purchase-returns.modul
     PaymentsModule,
     SalesReturnsModule,
     PurchaseReturnsModule,
+    UnitConversionsModule,
   ],
   controllers: [],
   providers: [],

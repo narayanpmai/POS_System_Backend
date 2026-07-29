@@ -62,6 +62,8 @@ export class SalesService {
       itemsToCreate.push({
         productId: product.id,
         quantity: itemDto.quantity,
+        saleUnit: itemDto.saleUnit,
+        saleUnitQuantity: itemDto.saleUnitQuantity,
         price: itemPrice,
         cost: itemCost,
         taxAmount: Number(itemTax.toFixed(2)),

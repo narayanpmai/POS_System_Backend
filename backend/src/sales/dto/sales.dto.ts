@@ -9,8 +9,19 @@ export class CreateSaleItemDto {
 
   @ApiProperty({ example: 2, description: 'Quantity purchased' })
   @IsNumber()
-  @Min(1)
+  @Min(0.0001)
   quantity: number;
+
+  @ApiProperty({ example: 'Gram', description: 'Unit selected at POS', required: false })
+  @IsString()
+  @IsOptional()
+  saleUnit?: string;
+
+  @ApiProperty({ example: 250, description: 'Quantity entered in selected unit', required: false })
+  @IsNumber()
+  @IsOptional()
+  saleUnitQuantity?: number;
+
 }
 
 export class CreateSaleDto {
