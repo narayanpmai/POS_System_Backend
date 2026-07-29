@@ -42,6 +42,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
+          cd backend
           npm install --include=dev
           chmod -R +x node_modules/.bin || true
 
@@ -64,6 +65,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
+          cd backend
           rm -rf dist || true
 
       - name: Build project
@@ -75,6 +77,7 @@ jobs:
           nvm use --lts
 
           echo "Starting build..."
+          cd backend
           ./node_modules/.bin/nest build
           echo "Build completed"
 
@@ -82,6 +85,7 @@ jobs:
         shell: bash
         run: |
           set -e
+          cd backend
           if [ ! -d "dist" ] || [ ! -f "dist/src/main.js" ]; then
             echo "❌ ERROR: dist/src/main.js not found!"
             ls -lah dist/ || echo "dist folder not found"
@@ -97,6 +101,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
+          cd backend
           npm test || echo "No test script or tests failing - continuing for dev..."
 
       - name: Deploy to dev directory
@@ -125,7 +130,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend"
+          cd "$HOME/koselighar-backend/backend"
           
           echo "Generating Prisma client in deployment directory..."
           npx prisma generate
@@ -134,7 +139,7 @@ jobs:
           npx prisma db push --accept-data-loss
 
           echo "Executing database seed.js..."
-          node seed.js
+          npm run prisma:seed
 
       - name: Install production dependencies in dev deployment dir
         shell: bash
@@ -143,7 +148,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
-          cd "$HOME/koselighar-backend"
+          cd "$HOME/koselighar-backend/backend"
           npm install --omit=dev --ignore-scripts
           npm rebuild bcrypt || echo "bcrypt rebuild failed or not used, continuing..."
 
@@ -159,7 +164,7 @@ jobs:
       - name: Deploy dev with PM2 (reuse same process)
         shell: bash
         env:
-          APP_NAME: koselighar-prod
+          APP_NAME: smartpos-backend
         run: |
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -168,9 +173,9 @@ jobs:
           cd "$HOME/koselighar-backend"
 
           if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
-            pm2 reload ecosystem.config.cjs --only "$APP_NAME" --update-env
+            pm2 reload ecosystem.config.js --only "$APP_NAME" --update-env
           else
-            pm2 start ecosystem.config.cjs --only "$APP_NAME"
+            pm2 start ecosystem.config.js --only "$APP_NAME"
           fi
 
           # Wait up to 30 seconds for app to come online
