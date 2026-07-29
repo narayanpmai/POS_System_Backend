@@ -43,6 +43,7 @@ model Company {
   purchaseReturns       PurchaseReturn[]
   saleReturns           SaleReturn[]
   PaymentTransaction    PaymentTransaction[]
+  unitConversions       UnitConversion[]
 }
 
 model User {
@@ -146,6 +147,7 @@ model Product {
   purchaseItems         PurchaseItem[]
   companyId             Int                    @default(1)
   company               Company                @relation(fields: [companyId], references: [id])
+  unitConversions       UnitConversion[]
 
   @@unique([SKU, companyId])
   @@unique([barcode, companyId])
@@ -196,6 +198,8 @@ model PurchaseItem {
   measurementUnit     String               @default("pcs") // Measurement Unit at time of purchase
   costPrice           Float // cost per unit at the time of purchase
   total               Float
+  saleUnit            String?
+  saleUnitQuantity    Float?
   purchaseReturnItems PurchaseReturnItem[]
 }
 
@@ -249,6 +253,8 @@ model SaleItem {
   cost            Float // Product cost at the time of sale (for profit reports)
   taxAmount       Float
   total           Float
+  saleUnit        String?  // e.g., "Gram"
+  saleUnitQuantity Float?  // e.g., 250
   saleReturnItems SaleReturnItem[]
 }
 
@@ -508,4 +514,21 @@ model PaymentTransaction {
   createdAt      DateTime @default(now())
   companyId      Int      @default(1)
   company        Company  @relation(fields: [companyId], references: [id])
+}
+
+// =========================
+// UNIT CONVERSION MODULE
+// =========================
+
+model UnitConversion {
+  id               Int      @id @default(autoincrement())
+  baseUnit         String   // e.g., "KG", "Dozen", "Box"
+  secondaryUnit    String   // e.g., "Gram", "Piece"
+  conversionFactor Float    // e.g., 1000 (1 Base = 1000 Secondary)
+  
+  productId        Int?     
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  companyId        Int      @default(1)
+  company          Company  @relation(fields: [companyId], references: [id])
 }
