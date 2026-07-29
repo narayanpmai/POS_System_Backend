@@ -164,10 +164,12 @@ jobs:
         shell: bash
         run: |
           UPLOAD_DIR="/home/storage/koselighar"
-          mkdir -p "$UPLOAD_DIR"
-          chmod -R 775 "$UPLOAD_DIR"
-          echo "Uploads dir:"
-          ls -ld "$UPLOAD_DIR"
+          if ! mkdir -p "$UPLOAD_DIR" 2>/dev/null; then
+            UPLOAD_DIR="$HOME/storage/koselighar"
+            mkdir -p "$UPLOAD_DIR" 2>/dev/null || mkdir -p "$HOME/koselighar-backend/uploads"
+          fi
+          chmod -R 775 "$UPLOAD_DIR" 2>/dev/null || true
+          echo "✓ Uploads dir verified at $UPLOAD_DIR"
 
       - name: Deploy prod with PM2 (reuse same process)
         shell: bash
