@@ -56,6 +56,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
           nvm use --lts
 
+          cd backend
           npx prisma generate
 
       - name: Clean dist folder
