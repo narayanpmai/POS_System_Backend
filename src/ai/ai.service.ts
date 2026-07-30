@@ -5,10 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AiService {
   constructor(private prisma: PrismaService) {}
 
-  async getSalesPrediction() {
+  async getSalesPrediction(companyId: number) {
     // Basic AI heuristic: Average daily sales * 30 to predict next month
     const sales = await this.prisma.sale.findMany({
       where: {
+        companyId,
         createdAt: { gte: new Date(new Date().setDate(new Date().getDate() - 30)) }
       }
     });
@@ -24,13 +25,14 @@ export class AiService {
     };
   }
 
-  async getReorderSuggestions() {
+  async getReorderSuggestions(companyId: number) {
     // Basic AI heuristic: Stock < (Average daily sold * 14) implies need to reorder
-    const products = await this.prisma.product.findMany();
+    const products = await this.prisma.product.findMany({
+      where: { companyId }
+    });
     const suggestions = [];
 
     for (const p of products) {
-      // Mocking average daily sold for the sake of AI speed, normally you'd query Sales items.
       const mockAvgDaily = Math.floor(Math.random() * 5) + 1; 
       const threshold = mockAvgDaily * 14; // 14 days safety stock
 
@@ -48,13 +50,17 @@ export class AiService {
     return suggestions;
   }
 
-  async getSlowMovingProducts() {
+  async getSlowMovingProducts(companyId: number) {
     // Products with 0 sales in the last 30 days
     const products = await this.prisma.product.findMany({
+      where: { companyId },
       include: {
         saleItems: {
           where: {
-            sale: { createdAt: { gte: new Date(new Date().setDate(new Date().getDate() - 30)) } }
+            sale: {
+              companyId,
+              createdAt: { gte: new Date(new Date().setDate(new Date().getDate() - 30)) }
+            }
           }
         }
       }
