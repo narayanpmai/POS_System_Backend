@@ -89,6 +89,18 @@ export class ProductsService {
       }
     });
 
+    // Recursively sum total products for parent categories
+    const calcTotalProducts = (node: any): number => {
+      let count = node._count?.products || 0;
+      for (const child of node.children) {
+        count += calcTotalProducts(child);
+      }
+      node._count = { ...node._count, products: count };
+      return count;
+    };
+
+    rootTree.forEach(root => calcTotalProducts(root));
+
     return rootTree;
   }
 
