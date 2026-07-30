@@ -11,6 +11,11 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ example: 1, description: 'Parent Category Database ID', required: false })
+  @IsNumber()
+  @IsOptional()
+  parentId?: number | null;
 }
 
 export class UpdateCategoryDto {
@@ -23,6 +28,11 @@ export class UpdateCategoryDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ example: 1, description: 'Parent Category Database ID', required: false })
+  @IsNumber()
+  @IsOptional()
+  parentId?: number | null;
 }
 
 export class CreateProductDto {
