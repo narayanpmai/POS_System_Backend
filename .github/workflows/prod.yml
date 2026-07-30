@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - master
-      - main
   pull_request:
     branches:
       - master
-      - main
   workflow_dispatch:
 
 jobs:
@@ -147,10 +145,7 @@ jobs:
           npx prisma generate
 
           echo "Pushing database schema changes..."
-          npx prisma db push --accept-data-loss
-
-          echo "Executing database seed script..."
-          npm run prisma:seed || echo "No prisma:seed script or completed"
+          npx prisma db push
 
       - name: Install production dependencies in prod deployment dir
         shell: bash
