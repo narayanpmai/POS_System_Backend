@@ -4,7 +4,48 @@ import { CreateProductDto, UpdateProductDto, CreateCategoryDto, UpdateCategoryDt
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+
+@ApiTags('Categories')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Controller('categories')
+export class CategoriesController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List all product categories' })
+  findAllCategories(@Req() req: any) {
+    return this.productsService.findAllCategories(req.user.companyId);
+  }
+
+  @Post()
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Create new product category' })
+  createCategory(@Req() req: any, @Body() dto: CreateCategoryDto) {
+    return this.productsService.createCategory(req.user.companyId, dto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get category details' })
+  findCategoryById(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.findCategoryById(req.user.companyId, id);
+  }
+
+  @Put(':id')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Update category' })
+  updateCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
+    return this.productsService.updateCategory(req.user.companyId, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Delete category' })
+  removeCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.productsService.removeCategory(req.user.companyId, id);
+  }
+}
 
 @ApiTags('Products & Catalog')
 @ApiBearerAuth()
@@ -14,7 +55,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   // ==========================================
-  // CATEGORY ENDPOINTS
+  // CATEGORY ENDPOINTS (Alias under /products/categories)
   // ==========================================
 
   @Post('categories')
