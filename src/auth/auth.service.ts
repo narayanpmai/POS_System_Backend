@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -6,29 +6,38 @@ import { LoginDto, RegisterDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
 
   async login(dto: LoginDto) {
+    this.logger.log(`🔑 Login request received for email: ${dto.email}`);
+
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
       include: { role: true },
     });
 
     if (!user) {
+      this.logger.warn(`❌ Login failed: Email not registered (${dto.email})`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) {
+      this.logger.warn(`❌ Login failed: Invalid password for ${dto.email}`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     if (!user.active) {
+      this.logger.warn(`❌ Login failed: Account deactivated for ${dto.email}`);
       throw new UnauthorizedException('Your account has been deactivated');
     }
+
+    this.logger.log(`✅ Login SUCCESSFUL: User ${user.email} (Role: ${user.role.name}, Company ID: ${user.companyId})`);
 
     const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
     const { password, ...userWithoutPassword } = user;
@@ -40,21 +49,21 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    this.logger.log(`📝 Registration request for email: ${dto.email}`);
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
 
     if (exists) {
+      this.logger.warn(`❌ Registration failed: Email already registered (${dto.email})`);
       throw new BadRequestException('Email already registered');
     }
 
-    // Assign default role (e.g., Cashier if not specified)
     let role = await this.prisma.role.findFirst({
       where: { name: dto.role || 'Cashier' },
     });
 
     if (!role) {
-      // Fallback
       role = await this.prisma.role.create({
         data: { name: dto.role || 'Cashier', description: 'Default system role' },
       });
@@ -74,6 +83,8 @@ export class AuthService {
       include: { role: true },
     });
 
+    this.logger.log(`✅ Registration SUCCESSFUL: User ${user.email}`);
+
     const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
     const { password, ...userWithoutPassword } = user;
 
@@ -84,14 +95,13 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
+    this.logger.log(`📧 Forgot password request for email: ${email}`);
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
     if (!user) {
-      // Don't leak existence in production, just return success
       return { message: 'If this email exists, a password reset link has been sent' };
     }
-    // Simulate email dispatch
     return { message: 'If this email exists, a password reset link has been sent' };
   }
 }
