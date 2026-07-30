@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateCategoryDto {
@@ -13,6 +14,11 @@ export class CreateCategoryDto {
   description?: string;
 
   @ApiProperty({ example: 1, description: 'Parent Category Database ID', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === 'null' || value === null || value === undefined) return null;
+    const n = parseInt(value, 10);
+    return isNaN(n) ? null : n;
+  })
   @IsNumber()
   @IsOptional()
   parentId?: number | null;
@@ -32,6 +38,11 @@ export class UpdateCategoryDto {
   description?: string;
 
   @ApiProperty({ example: 1, description: 'Parent Category Database ID', required: false })
+  @Transform(({ value }) => {
+    if (value === '' || value === 'null' || value === null || value === undefined) return null;
+    const n = parseInt(value, 10);
+    return isNaN(n) ? null : n;
+  })
   @IsNumber()
   @IsOptional()
   parentId?: number | null;
