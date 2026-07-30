@@ -229,7 +229,22 @@ export class ProductsService {
     }
 
     if (query.categoryId) {
-      where.categoryId = Number(query.categoryId);
+      const catId = Number(query.categoryId);
+      // Collect target category + all its subcategory IDs recursively
+      const allCats = await this.prisma.category.findMany({
+        where: { companyId },
+        select: { id: true, parentId: true }
+      });
+      const getSubCatIds = (targetId: number): number[] => {
+        const children = allCats.filter(c => c.parentId === targetId);
+        let ids = [targetId];
+        for (const child of children) {
+          ids = ids.concat(getSubCatIds(child.id));
+        }
+        return ids;
+      };
+      const categoryIds = getSubCatIds(catId);
+      where.categoryId = { in: categoryIds };
     }
 
     if (query.lowStockOnly) {

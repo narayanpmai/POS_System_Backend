@@ -94,14 +94,27 @@ export class ProductsController {
   @Post('categories')
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product category (Admin Only)' })
-  createCategory(@Req() req: any, @Body() dto: CreateCategoryDto) {
-    return this.productsService.createCategory(req.user.companyId, dto);
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image', { storage: categoryImageStorage }))
+  createCategory(
+    @Req() req: any,
+    @Body() dto: CreateCategoryDto,
+    @UploadedFile() imageFile?: MulterFile,
+  ) {
+    const imagePath = imageFile ? `uploads/categories/${imageFile.filename}` : undefined;
+    return this.productsService.createCategory(req.user.companyId, dto, imagePath);
   }
 
   @Get('categories')
   @ApiOperation({ summary: 'List all product categories' })
   findAllCategories(@Req() req: any) {
     return this.productsService.findAllCategories(req.user.companyId);
+  }
+
+  @Get('categories/tree')
+  @ApiOperation({ summary: 'Get nested category hierarchy tree' })
+  findCategoryTree(@Req() req: any) {
+    return this.productsService.findCategoryTree(req.user.companyId);
   }
 
   @Get('categories/:id')
@@ -113,8 +126,16 @@ export class ProductsController {
   @Put('categories/:id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update category (Admin Only)' })
-  updateCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
-    return this.productsService.updateCategory(req.user.companyId, id, dto);
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image', { storage: categoryImageStorage }))
+  updateCategory(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCategoryDto,
+    @UploadedFile() imageFile?: MulterFile,
+  ) {
+    const imagePath = imageFile ? `uploads/categories/${imageFile.filename}` : undefined;
+    return this.productsService.updateCategory(req.user.companyId, id, dto, imagePath);
   }
 
   @Delete('categories/:id')
