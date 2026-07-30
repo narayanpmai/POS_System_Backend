@@ -8,6 +8,11 @@ export class CompaniesService {
 
   async findAll() {
     return this.prisma.company.findMany({
+      include: {
+        users: {
+          select: { id: true, name: true, email: true, active: true, role: { select: { name: true } } },
+        },
+      },
       orderBy: { id: 'asc' },
     });
   }
@@ -15,6 +20,11 @@ export class CompaniesService {
   async findOne(id: number) {
     const company = await this.prisma.company.findUnique({
       where: { id },
+      include: {
+        users: {
+          select: { id: true, name: true, email: true, active: true, role: { select: { name: true } } },
+        },
+      },
     });
     if (!company) throw new NotFoundException('Company not found');
     return company;
@@ -94,6 +104,71 @@ export class CompaniesService {
       where: { id },
       data,
     });
+  }
+
+  async assignAdmin(companyId: number, data: { userId?: number; email?: string; name?: string; password?: string }) {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Company not found');
+
+    const adminRole = await this.prisma.role.findUnique({ where: { name: 'Admin' } });
+    if (!adminRole) throw new BadRequestException('Admin role not found');
+
+    // Option A: Re-assign an existing user ID to this company
+    if (data.userId) {
+      const user = await this.prisma.user.findUnique({ where: { id: Number(data.userId) } });
+      if (!user) throw new NotFoundException('User not found');
+
+      const updatedUser = await this.prisma.user.update({
+        where: { id: Number(data.userId) },
+        data: {
+          companyId,
+          active: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Assigned user "${updatedUser.name}" (${updatedUser.email}) to company "${company.name}".`,
+      };
+    }
+
+    // Option B: Create a new Admin user or link by email
+    if (!data.email) {
+      throw new BadRequestException('Either userId or email is required to assign admin');
+    }
+
+    const existingUser = await this.prisma.user.findUnique({ where: { email: data.email } });
+    if (existingUser) {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: { companyId, active: true },
+      });
+      return {
+        success: true,
+        message: `Existing user "${updatedUser.email}" linked to company "${company.name}".`,
+      };
+    }
+
+    if (!data.password) {
+      throw new BadRequestException('Password is required for creating a new Admin user');
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: data.email,
+        name: data.name || 'Company Admin',
+        password: hashedPassword,
+        roleId: adminRole.id,
+        companyId,
+        active: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Created and assigned new Admin "${newUser.name}" (${newUser.email}) to company "${company.name}".`,
+    };
   }
 
   async deleteCompany(id: number) {
