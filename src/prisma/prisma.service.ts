@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { AsyncLocalStorage } from 'async_hooks';
 
-export const tenantContext = new AsyncLocalStorage<{ companyId: number }>();
+export const tenantContext = new AsyncLocalStorage<{ companyId?: number; isSuperAdmin?: boolean }>();
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -13,6 +13,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     this.$use(async (params, next) => {
       const store = tenantContext.getStore();
       const companyId = store?.companyId;
+      const isSuperAdmin = store?.isSuperAdmin;
+
+      // Allow Super Admin global system access when companyId is 0 or unconstrained
+      if (isSuperAdmin && (companyId === 0 || companyId === undefined)) {
+        return next(params);
+      }
       
       // Skip global entities that do not belong to a specific company
       if (!companyId || ['Role', 'Company'].includes(params.model as string)) {
