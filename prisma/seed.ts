@@ -43,7 +43,7 @@ async function main() {
   console.log('✓ System roles verified.');
 
   // 3. Clean and parse environment variables
-  const superAdminEmail = (process.env.SUPERADMIN_EMAIL || 'admin@koselighar.com').replace(/^["']|["']$/g, '').trim();
+  const superAdminEmail = (process.env.SUPERADMIN_EMAIL || 'smartpanchpokhari@gmail.com').replace(/^["']|["']$/g, '').trim();
   const rawPassword = (process.env.SUPERADMIN_PASSWORD || 'admin123').replace(/^["']|["']$/g, '').trim();
   const superAdminName = (process.env.SUPERADMIN_NAME || 'Super Admin').replace(/^["']|["']$/g, '').trim();
 
@@ -70,10 +70,12 @@ async function main() {
     },
   });
 
-  // Also update password for legacy admin accounts if they exist
+  // Also update password for smartpanchpokhari@gmail.com and legacy admin accounts if they exist
   await prisma.user.updateMany({
     where: {
       OR: [
+        { email: 'smartpanchpokhari@gmail.com' },
+        { email: 'admin@koselighar.com' },
         { email: 'admin@pos.com' },
         { email: 'admin@smartpos.com' },
       ],
