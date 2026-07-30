@@ -37,10 +37,11 @@ export class ReportsController {
   }
 
   @Get('inventory-valuation')
-  @Roles('Admin')
-  @ApiOperation({ summary: 'Calculate total asset cost valuation and stock thresholds (Admin Only)' })
-  getInventoryReport(@Req() req: any) {
-    return this.reportsService.getInventoryReport(req.user.companyId);
+  @ApiQuery({ name: 'companyId', required: false, type: Number })
+  @ApiOperation({ summary: 'Calculate total asset cost valuation and stock thresholds' })
+  getInventoryReport(@Req() req: any, @Query('companyId') queryCompanyId?: string) {
+    const cid = (req.user.role.name === 'Super Admin' && queryCompanyId) ? Number(queryCompanyId) : req.user.companyId;
+    return this.reportsService.getInventoryReport(cid);
   }
 
   @Get('financial')
