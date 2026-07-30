@@ -6,17 +6,20 @@ import { UpdateSettingsDto } from './dto/settings.dto';
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
-  async getSettings() {
-    let settings = await this.prisma.storeSetting.findFirst();
+  async getSettings(companyId: number) {
+    let settings = await this.prisma.storeSetting.findFirst({
+      where: { companyId },
+    });
 
     if (!settings) {
-      // Create defaults if not found
+      const company = await this.prisma.company.findUnique({ where: { id: companyId } });
       settings = await this.prisma.storeSetting.create({
         data: {
-          storeName: 'SmartPOS Default Retail',
-          address: '123 Retail St, Cityville',
-          phone: '+1 555-0100',
-          email: 'store@smartpos.com',
+          companyId,
+          storeName: company?.name || 'KoseliGhar',
+          address: company?.address || 'Nepal',
+          phone: company?.phone || '',
+          email: company?.email || '',
           taxNumber: 'TAX-000000',
           currencySymbol: 'Rs.',
           receiptHeader: 'Thank you for shopping with us!',
@@ -30,9 +33,9 @@ export class SettingsService {
     return settings;
   }
 
-  async updateSettings(dto: UpdateSettingsDto) {
+  async updateSettings(companyId: number, dto: UpdateSettingsDto) {
     // Ensure default settings row exists for this tenant
-    const settings = await this.getSettings();
+    const settings = await this.getSettings(companyId);
 
     return this.prisma.storeSetting.update({
       where: { id: settings.id },
