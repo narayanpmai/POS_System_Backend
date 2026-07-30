@@ -29,12 +29,10 @@ export class CompaniesService {
     adminEmail: string;
     adminPassword: string;
   }) {
-    // Basic validation
     if (!data.adminEmail || !data.adminPassword) {
       throw new BadRequestException('Admin email and password are required');
     }
 
-    // Check if the admin email is already in use
     const existingUser = await this.prisma.user.findUnique({
       where: { email: data.adminEmail }
     });
@@ -43,7 +41,6 @@ export class CompaniesService {
       throw new BadRequestException('A user with this admin email already exists.');
     }
 
-    // Get Admin role
     const adminRole = await this.prisma.role.findUnique({
       where: { name: 'Admin' }
     });
@@ -55,9 +52,7 @@ export class CompaniesService {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(data.adminPassword, salt);
 
-    // Use a transaction to ensure all related records are created together
     return this.prisma.$transaction(async (prisma) => {
-      // 1. Create the Company
       const company = await prisma.company.create({
         data: {
           name: data.name,
@@ -67,7 +62,6 @@ export class CompaniesService {
         },
       });
 
-      // 2. Create the StoreSetting for the Company
       await prisma.storeSetting.create({
         data: {
           companyId: company.id,
@@ -79,7 +73,6 @@ export class CompaniesService {
         },
       });
 
-      // 3. Create the Admin User
       await prisma.user.create({
         data: {
           email: data.adminEmail,
@@ -105,7 +98,7 @@ export class CompaniesService {
 
   async deleteCompany(id: number) {
     if (id === 1) {
-      throw new BadRequestException('Cannot delete or deactivate the Super Admin (default) company.');
+      throw new BadRequestException('Cannot delete or deactivate default company #1.');
     }
 
     const company = await this.prisma.company.findUnique({ where: { id } });
@@ -113,18 +106,101 @@ export class CompaniesService {
       throw new NotFoundException('Company not found');
     }
 
-    // Soft delete / deactivate the company instead of hard deleting
     await this.prisma.company.update({
       where: { id },
       data: { isActive: false }
     });
 
-    // Also deactivate all users of this company so they cannot login
     await this.prisma.user.updateMany({
       where: { companyId: id },
       data: { active: false }
     });
 
-    return { success: true, message: 'Company deactivated successfully. No data was permanently deleted.' };
+    return { success: true, message: 'Company deactivated successfully.' };
+  }
+
+  async flushCompanyData(companyId: number) {
+    if (companyId === 1) {
+      throw new BadRequestException('Cannot flush data for default system company #1.');
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Company not found');
+
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Delete Sale Returns & Purchase Returns
+      await prisma.saleReturnItem.deleteMany({ where: { saleReturn: { companyId } } });
+      await prisma.saleReturn.deleteMany({ where: { companyId } });
+      await prisma.purchaseReturnItem.deleteMany({ where: { purchaseReturn: { companyId } } });
+      await prisma.purchaseReturn.deleteMany({ where: { companyId } });
+
+      // 2. Delete Sales & Purchases
+      await prisma.saleItem.deleteMany({ where: { sale: { companyId } } });
+      await prisma.sale.deleteMany({ where: { companyId } });
+      await prisma.deletedSale.deleteMany({ where: { companyId } });
+      await prisma.purchaseItem.deleteMany({ where: { purchase: { companyId } } });
+      await prisma.purchase.deleteMany({ where: { companyId } });
+
+      // 3. Delete Stock & Transactions
+      await prisma.inventoryTransaction.deleteMany({ where: { companyId } });
+      await prisma.journalEntryLine.deleteMany({ where: { journalEntry: { companyId } } });
+      await prisma.journalEntry.deleteMany({ where: { companyId } });
+      await prisma.rewardPointHistory.deleteMany({ where: { companyId } });
+      await prisma.paymentTransaction.deleteMany({ where: { companyId } });
+      await prisma.shift.deleteMany({ where: { companyId } });
+      await prisma.activityLog.deleteMany({ where: { companyId } });
+
+      // 4. Delete Products, Brands, Unit Conversions, Categories
+      await prisma.unitConversion.deleteMany({ where: { companyId } });
+      await prisma.product.deleteMany({ where: { companyId } });
+      await prisma.brand.deleteMany({ where: { companyId } });
+      await prisma.category.deleteMany({ where: { companyId } });
+
+      // 5. Delete Expenses & Incomes
+      await prisma.expense.deleteMany({ where: { companyId } });
+      await prisma.expenseCategory.deleteMany({ where: { companyId } });
+      await prisma.income.deleteMany({ where: { companyId } });
+      await prisma.incomeCategory.deleteMany({ where: { companyId } });
+
+      // 6. Delete Customers & Suppliers
+      await prisma.customer.deleteMany({ where: { companyId } });
+      await prisma.supplier.deleteMany({ where: { companyId } });
+
+      return { success: true, message: `Successfully flushed all operational data for company "${company.name}".` };
+    });
+  }
+
+  async deleteCompanyPermanently(companyId: number) {
+    if (companyId === 1) {
+      throw new BadRequestException('Cannot delete default system company #1.');
+    }
+
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    if (!company) throw new NotFoundException('Company not found');
+
+    // 1. Flush operational data first
+    await this.flushCompanyData(companyId);
+
+    return this.prisma.$transaction(async (prisma) => {
+      // 2. Delete remaining configuration entities
+      await prisma.storeSetting.deleteMany({ where: { companyId } });
+      await prisma.fiscalYear.deleteMany({ where: { companyId } });
+      await prisma.membershipTier.deleteMany({ where: { companyId } });
+      await prisma.account.deleteMany({ where: { companyId } });
+
+      // 3. Delete Company Users (excluding Super Admin)
+      const superAdminRole = await prisma.role.findUnique({ where: { name: 'Super Admin' } });
+      await prisma.user.deleteMany({
+        where: {
+          companyId,
+          NOT: { roleId: superAdminRole?.id || 0 },
+        },
+      });
+
+      // 4. Delete Company record itself
+      await prisma.company.delete({ where: { id: companyId } });
+
+      return { success: true, message: `Company "${company.name}" and all its data have been permanently deleted.` };
+    });
   }
 }

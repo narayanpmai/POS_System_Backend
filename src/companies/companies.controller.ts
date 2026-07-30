@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Delete, Param, UseGuards, UnauthorizedException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Delete, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -27,9 +27,18 @@ export class CompaniesController {
     return this.companiesService.update(Number(id), data);
   }
 
+  @Post(':id/flush-data')
+  @Roles('Super Admin')
+  async flushData(@Req() req: any, @Param('id') id: string) {
+    return this.companiesService.flushCompanyData(Number(id));
+  }
+
   @Delete(':id')
   @Roles('Super Admin')
-  async remove(@Req() req: any, @Param('id') id: string) {
+  async remove(@Req() req: any, @Param('id') id: string, @Query('permanent') permanent?: string) {
+    if (permanent === 'true') {
+      return this.companiesService.deleteCompanyPermanently(Number(id));
+    }
     return this.companiesService.deleteCompany(Number(id));
   }
 }
