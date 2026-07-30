@@ -188,16 +188,19 @@ export class CompaniesService {
       await prisma.membershipTier.deleteMany({ where: { companyId } });
       await prisma.account.deleteMany({ where: { companyId } });
 
-      // 3. Delete Company Users (excluding Super Admin)
+      // 3. Re-assign any Super Admin users tied to this company back to Company #1
       const superAdminRole = await prisma.role.findUnique({ where: { name: 'Super Admin' } });
-      await prisma.user.deleteMany({
-        where: {
-          companyId,
-          NOT: { roleId: superAdminRole?.id || 0 },
-        },
-      });
+      if (superAdminRole) {
+        await prisma.user.updateMany({
+          where: { companyId, roleId: superAdminRole.id },
+          data: { companyId: 1 },
+        });
+      }
 
-      // 4. Delete Company record itself
+      // 4. Delete all other Users belonging to this company
+      await prisma.user.deleteMany({ where: { companyId } });
+
+      // 5. Delete Company record itself
       await prisma.company.delete({ where: { id: companyId } });
 
       return { success: true, message: `Company "${company.name}" and all its data have been permanently deleted.` };
