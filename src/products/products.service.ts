@@ -16,16 +16,22 @@ export class ProductsService {
     });
     if (exists) throw new BadRequestException('Category already exists in your company catalog');
 
+    if (dto.parentId) {
+      const parent = await this.prisma.category.findUnique({ where: { id: dto.parentId } });
+      if (!parent || parent.companyId !== companyId) {
+        throw new BadRequestException('Specified parent category does not exist');
+      }
+    }
+
     return this.prisma.category.create({ data: { ...dto, companyId } });
   }
 
   async findAllCategories(companyId: number) {
-    let categories = await this.prisma.category.findMany({
+    const categories = await this.prisma.category.findMany({
       where: { companyId },
       include: {
-        _count: {
-          select: { products: true }
-        }
+        parent: { select: { id: true, name: true } },
+        _count: { select: { products: true, children: true } }
       },
       orderBy: { name: 'asc' },
     });
@@ -35,16 +41,63 @@ export class ProductsService {
       const defaultCategory = await this.prisma.category.create({
         data: { name: 'General', companyId }
       });
-      return [{ ...defaultCategory, _count: { products: 0 } }];
+      return [{ ...defaultCategory, fullPath: 'General', level: 0, _count: { products: 0, children: 0 } }];
     }
 
-    return categories;
+    const catMap = new Map<number, any>(categories.map(c => [c.id, c]));
+
+    const getPathAndLevel = (catId: number): { fullPath: string; level: number } => {
+      const cat = catMap.get(catId);
+      if (!cat) return { fullPath: '', level: 0 };
+      if (!cat.parentId || !catMap.has(cat.parentId)) {
+        return { fullPath: cat.name, level: 0 };
+      }
+      const parentInfo = getPathAndLevel(cat.parentId);
+      return {
+        fullPath: `${parentInfo.fullPath} > ${cat.name}`,
+        level: parentInfo.level + 1
+      };
+    };
+
+    return categories.map(cat => {
+      const { fullPath, level } = getPathAndLevel(cat.id);
+      return {
+        ...cat,
+        fullPath,
+        level,
+      };
+    });
+  }
+
+  async findCategoryTree(companyId: number) {
+    const allCategories = await this.findAllCategories(companyId);
+    const catMap = new Map<number, any>();
+    
+    allCategories.forEach(cat => {
+      catMap.set(cat.id, { ...cat, children: [] });
+    });
+
+    const rootTree: any[] = [];
+    allCategories.forEach(cat => {
+      const node = catMap.get(cat.id);
+      if (cat.parentId && catMap.has(cat.parentId)) {
+        catMap.get(cat.parentId).children.push(node);
+      } else {
+        rootTree.push(node);
+      }
+    });
+
+    return rootTree;
   }
 
   async findCategoryById(companyId: number, id: number) {
     const category = await this.prisma.category.findUnique({
       where: { id },
-      include: { products: true },
+      include: {
+        parent: true,
+        children: true,
+        products: true
+      },
     });
     if (!category || category.companyId !== companyId) throw new NotFoundException('Category not found');
     return category;
@@ -52,6 +105,23 @@ export class ProductsService {
 
   async updateCategory(companyId: number, id: number, dto: UpdateCategoryDto) {
     await this.findCategoryById(companyId, id);
+
+    if (dto.parentId !== undefined && dto.parentId !== null) {
+      if (dto.parentId === id) {
+        throw new BadRequestException('A category cannot be its own parent');
+      }
+
+      // Check circular reference
+      let currentParentId: number | null = dto.parentId;
+      while (currentParentId) {
+        if (currentParentId === id) {
+          throw new BadRequestException('Circular parent relationship detected');
+        }
+        const parentCat = await this.prisma.category.findUnique({ where: { id: currentParentId } });
+        currentParentId = parentCat ? parentCat.parentId : null;
+      }
+    }
+
     if (dto.name) {
       const exists = await this.prisma.category.findFirst({
         where: { name: dto.name, companyId, NOT: { id } },
@@ -66,6 +136,7 @@ export class ProductsService {
 
   async removeCategory(companyId: number, id: number) {
     await this.findCategoryById(companyId, id);
+
     // Check if products exist in category
     const productsCount = await this.prisma.product.count({
       where: { categoryId: id },
@@ -73,6 +144,15 @@ export class ProductsService {
     if (productsCount > 0) {
       throw new BadRequestException('Cannot delete category containing active products');
     }
+
+    // Check if child subcategories exist
+    const childrenCount = await this.prisma.category.count({
+      where: { parentId: id },
+    });
+    if (childrenCount > 0) {
+      throw new BadRequestException('Cannot delete category that contains subcategories. Delete or reassign subcategories first.');
+    }
+
     return this.prisma.category.delete({ where: { id } });
   }
 

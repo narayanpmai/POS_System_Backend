@@ -19,6 +19,12 @@ export class CategoriesController {
     return this.productsService.findAllCategories(req.user.companyId);
   }
 
+  @Get('tree')
+  @ApiOperation({ summary: 'Get nested category hierarchy tree' })
+  findCategoryTree(@Req() req: any) {
+    return this.productsService.findCategoryTree(req.user.companyId);
+  }
+
   @Post()
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product category' })
