@@ -112,11 +112,11 @@ export class UsersService {
       throw new BadRequestException('New password is required');
     }
     const hashedPassword = await bcrypt.hash(data.newPassword, 10);
-    await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, active: true }
     });
-    return { message: 'Password reset successfully' };
+    return { message: `Password reset successfully for ${updatedUser.email}` };
   }
 
   async remove(reqUser: any, id: number) {

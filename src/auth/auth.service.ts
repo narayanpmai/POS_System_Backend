@@ -14,17 +14,18 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
-    this.logger.log(`🔑 Login request received for email: ${dto.email}`);
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    this.logger.log(`🔑 Login request received for email: ${cleanEmail}`);
 
-    let user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+    let user = await this.prisma.user.findFirst({
+      where: { email: { equals: cleanEmail, mode: 'insensitive' } },
       include: { role: true },
     });
 
     // Fallback: If not found by User email, check if email matches a Company email
     if (!user) {
       const company = await this.prisma.company.findFirst({
-        where: { email: dto.email },
+        where: { email: { equals: cleanEmail, mode: 'insensitive' } },
       });
       if (company) {
         user = await this.prisma.user.findFirst({
@@ -39,7 +40,7 @@ export class AuthService {
     }
 
     if (!user) {
-      this.logger.warn(`❌ Login failed: Email not registered (${dto.email})`);
+      this.logger.warn(`❌ Login failed: Email not registered (${cleanEmail})`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
