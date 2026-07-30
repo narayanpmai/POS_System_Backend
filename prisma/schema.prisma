@@ -111,17 +111,18 @@ model Supplier {
 }
 
 model Category {
-  id          Int        @id @default(autoincrement())
-  name        String
-  description String?
-  parentId    Int?
-  parent      Category?  @relation("CategorySubCategories", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Category[] @relation("CategorySubCategories")
-  products    Product[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  companyId   Int        @default(1)
-  company     Company    @relation(fields: [companyId], references: [id])
+  id            Int        @id @default(autoincrement())
+  name          String
+  description   String?
+  image         String?    // Relative path to uploaded category image
+  parentId      Int?
+  parent        Category?  @relation("CategorySubCategories", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Category[] @relation("CategorySubCategories")
+  products      Product[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  companyId     Int        @default(1)
+  company       Company    @relation(fields: [companyId], references: [id])
 
   @@unique([name, companyId])
 }

@@ -341,7 +341,7 @@ export class ReportsService {
         name: p.name,
         SKU: p.SKU,
         category: p.category.name,
-        stock: p.stock,
+        stock: Number(Number(p.stock || 0).toFixed(3)),
         minStockAlert: p.minStockAlert,
         isLowStock,
         price: p.price,

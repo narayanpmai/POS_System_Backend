@@ -1,10 +1,22 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, ParseIntPipe, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Req, ParseIntPipe, Patch, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import type { File as MulterFile } from 'multer';
+import { extname, join } from 'path';
 import { ProductsService } from './products.service';
 import { CreateProductDto, UpdateProductDto, CreateCategoryDto, UpdateCategoryDto } from './dto/products.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiQuery } from '@nestjs/swagger';
+
+const categoryImageStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads', 'categories'),
+  filename: (_req, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `cat-${unique}${extname(file.originalname)}`);
+  },
+});
 
 @ApiTags('Categories')
 @ApiBearerAuth()
@@ -28,8 +40,15 @@ export class CategoriesController {
   @Post()
   @Roles('Admin')
   @ApiOperation({ summary: 'Create new product category' })
-  createCategory(@Req() req: any, @Body() dto: CreateCategoryDto) {
-    return this.productsService.createCategory(req.user.companyId, dto);
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image', { storage: categoryImageStorage }))
+  createCategory(
+    @Req() req: any,
+    @Body() dto: CreateCategoryDto,
+    @UploadedFile() imageFile?: MulterFile,
+  ) {
+    const imagePath = imageFile ? `uploads/categories/${imageFile.filename}` : undefined;
+    return this.productsService.createCategory(req.user.companyId, dto, imagePath);
   }
 
   @Get(':id')
@@ -41,8 +60,16 @@ export class CategoriesController {
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update category' })
-  updateCategory(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
-    return this.productsService.updateCategory(req.user.companyId, id, dto);
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image', { storage: categoryImageStorage }))
+  updateCategory(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCategoryDto,
+    @UploadedFile() imageFile?: MulterFile,
+  ) {
+    const imagePath = imageFile ? `uploads/categories/${imageFile.filename}` : undefined;
+    return this.productsService.updateCategory(req.user.companyId, id, dto, imagePath);
   }
 
   @Delete(':id')

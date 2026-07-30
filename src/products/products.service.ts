@@ -10,7 +10,7 @@ export class ProductsService {
   // CATEGORY BUSINESS LOGIC
   // ==========================================
 
-  async createCategory(companyId: number, dto: CreateCategoryDto) {
+  async createCategory(companyId: number, dto: CreateCategoryDto, imagePath?: string) {
     const exists = await this.prisma.category.findFirst({
       where: { name: dto.name, companyId },
     });
@@ -23,7 +23,9 @@ export class ProductsService {
       }
     }
 
-    return this.prisma.category.create({ data: { ...dto, companyId } });
+    return this.prisma.category.create({
+      data: { ...dto, companyId, ...(imagePath ? { image: imagePath } : {}) }
+    });
   }
 
   async findAllCategories(companyId: number) {
@@ -103,7 +105,7 @@ export class ProductsService {
     return category;
   }
 
-  async updateCategory(companyId: number, id: number, dto: UpdateCategoryDto) {
+  async updateCategory(companyId: number, id: number, dto: UpdateCategoryDto, imagePath?: string) {
     await this.findCategoryById(companyId, id);
 
     if (dto.parentId !== undefined && dto.parentId !== null) {
@@ -130,7 +132,7 @@ export class ProductsService {
     }
     return this.prisma.category.update({
       where: { id },
-      data: dto,
+      data: { ...dto, ...(imagePath ? { image: imagePath } : {}) },
     });
   }
 

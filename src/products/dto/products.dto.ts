@@ -16,6 +16,8 @@ export class CreateCategoryDto {
   @IsNumber()
   @IsOptional()
   parentId?: number | null;
+
+  // image is handled as a multipart/form-data upload, not a DTO field
 }
 
 export class UpdateCategoryDto {
