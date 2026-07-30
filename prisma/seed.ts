@@ -70,11 +70,14 @@ async function main() {
     },
   });
 
-  // Also update password for smartpanchpokhari@gmail.com and legacy admin accounts if they exist
+  // Also update password and activate all company admin accounts if they exist
   await prisma.user.updateMany({
     where: {
       OR: [
+        { email: 'beingsonam17@gmail.com' },
         { email: 'smartpanchpokhari@gmail.com' },
+        { email: 'ito.melamchimun@gmail.com' },
+        { email: 'ito.panchpokharithangpalmun@gmail.com' },
         { email: 'admin@koselighar.com' },
         { email: 'admin@pos.com' },
         { email: 'admin@smartpos.com' },
