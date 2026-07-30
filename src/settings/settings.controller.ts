@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { UpdateSettingsDto } from './dto/settings.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -25,5 +25,19 @@ export class SettingsController {
   @ApiResponse({ status: 200, description: 'Settings successfully updated' })
   updateSettings(@Req() req: any, @Body() dto: UpdateSettingsDto) {
     return this.settingsService.updateSettings(req.user.companyId, dto);
+  }
+
+  @Get('backup/export')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Export complete tenant-scoped company data backup JSON (Admin Only)' })
+  exportTenantBackup(@Req() req: any) {
+    return this.settingsService.exportTenantBackup(req.user.companyId);
+  }
+
+  @Post('backup/import')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Restore / import tenant-scoped company data backup (Admin Only)' })
+  importTenantBackup(@Req() req: any, @Body() body: any) {
+    return this.settingsService.importTenantBackup(req.user.companyId, body);
   }
 }
