@@ -33,6 +33,12 @@ export class CompaniesController {
     return this.companiesService.flushCompanyData(Number(id));
   }
 
+  @Post(':id/assign-admin')
+  @Roles('Super Admin')
+  async assignAdmin(@Req() req: any, @Param('id') id: string, @Body() data: any) {
+    return this.companiesService.assignAdmin(Number(id), data);
+  }
+
   @Delete(':id')
   @Roles('Super Admin')
   async remove(@Req() req: any, @Param('id') id: string, @Query('permanent') permanent?: string) {
