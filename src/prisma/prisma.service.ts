@@ -25,6 +25,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         return next(params);
       }
 
+      // Bypass tenant filter for User lookups by email (login / auth flow)
+      if (params.model === 'User' && params.args?.where?.email) {
+        return next(params);
+      }
+
       const readOperations = ['findUnique', 'findUniqueOrThrow', 'findFirst', 'findFirstOrThrow', 'findMany', 'count', 'aggregate', 'groupBy'];
       const writeOperations = ['update', 'updateMany', 'delete', 'deleteMany'];
 
