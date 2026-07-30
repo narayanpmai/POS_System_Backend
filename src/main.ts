@@ -8,6 +8,16 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Middleware to support both /api/v1/* prefixed and unprefixed routes
+  app.use((req: any, res: any, next: any) => {
+    if (req.url.startsWith('/api/v1/')) {
+      req.url = req.url.replace('/api/v1', '');
+    } else if (req.url === '/api/v1') {
+      req.url = '/';
+    }
+    next();
+  });
+
   // Enable CORS for frontend connectivity
   app.enableCors({
     origin: (origin, callback) => callback(null, true),
