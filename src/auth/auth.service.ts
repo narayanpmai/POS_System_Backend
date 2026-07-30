@@ -33,8 +33,17 @@ export class AuthService {
     }
 
     if (!user.active) {
-      this.logger.warn(`❌ Login failed: Account deactivated for ${dto.email}`);
-      throw new UnauthorizedException('Your account has been deactivated');
+      if (user.role?.name === 'Super Admin') {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { active: true },
+        });
+        user.active = true;
+        this.logger.log(`⚡ Auto-reactivated Super Admin account: ${user.email}`);
+      } else {
+        this.logger.warn(`❌ Login failed: Account deactivated for ${dto.email}`);
+        throw new UnauthorizedException('Your account has been deactivated');
+      }
     }
 
     this.logger.log(`✅ Login SUCCESSFUL: User ${user.email} (Role: ${user.role.name}, Company ID: ${user.companyId})`);
