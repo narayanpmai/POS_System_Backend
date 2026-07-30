@@ -5,6 +5,13 @@ import { tenantContext } from '../prisma/prisma.service';
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
+    // For authentication routes (login/register), run unconstrained so users across any tenant company can log in
+    if (req.originalUrl?.includes('/auth/') || req.path?.includes('/auth/')) {
+      return tenantContext.run({ isSuperAdmin: true, companyId: 0 }, () => {
+        next();
+      });
+    }
+
     let companyId: number | undefined;
     let isSuperAdmin = false;
 
