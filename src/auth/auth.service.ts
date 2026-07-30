@@ -16,10 +16,27 @@ export class AuthService {
   async login(dto: LoginDto) {
     this.logger.log(`🔑 Login request received for email: ${dto.email}`);
 
-    const user = await this.prisma.user.findUnique({
+    let user = await this.prisma.user.findUnique({
       where: { email: dto.email },
       include: { role: true },
     });
+
+    // Fallback: If not found by User email, check if email matches a Company email
+    if (!user) {
+      const company = await this.prisma.company.findFirst({
+        where: { email: dto.email },
+      });
+      if (company) {
+        user = await this.prisma.user.findFirst({
+          where: { companyId: company.id },
+          include: { role: true },
+          orderBy: { id: 'asc' },
+        });
+        if (user) {
+          this.logger.log(`⚡ Found Admin user for Company (${company.name}): ${user.email}`);
+        }
+      }
+    }
 
     if (!user) {
       this.logger.warn(`❌ Login failed: Email not registered (${dto.email})`);
