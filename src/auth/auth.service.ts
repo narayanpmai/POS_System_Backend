@@ -46,6 +46,21 @@ export class AuthService {
       }
     }
 
+    // Auto-associate Admin user to their company if email matches company email
+    if (user.role?.name === 'Admin') {
+      const matchedCompany = await this.prisma.company.findFirst({
+        where: { email: user.email },
+      });
+      if (matchedCompany && user.companyId !== matchedCompany.id) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { companyId: matchedCompany.id },
+        });
+        user.companyId = matchedCompany.id;
+        this.logger.log(`⚡ Auto-associated Admin ${user.email} to Company ID: ${matchedCompany.id} (${matchedCompany.name})`);
+      }
+    }
+
     this.logger.log(`✅ Login SUCCESSFUL: User ${user.email} (Role: ${user.role.name}, Company ID: ${user.companyId})`);
 
     const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
