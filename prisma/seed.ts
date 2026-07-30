@@ -50,43 +50,39 @@ async function main() {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(rawPassword, salt);
 
-  // Check if a Super Admin user already exists by role or target email
-  const existingUser = await prisma.user.findFirst({
+  // Safely upsert target Super Admin account by email to avoid unique constraint collisions
+  const superAdminUser = await prisma.user.upsert({
+    where: { email: superAdminEmail },
+    update: {
+      password: hashedPassword,
+      name: superAdminName,
+      roleId: superAdminRole.id,
+      active: true,
+      companyId: defaultCompany.id,
+    },
+    create: {
+      email: superAdminEmail,
+      password: hashedPassword,
+      name: superAdminName,
+      roleId: superAdminRole.id,
+      active: true,
+      companyId: defaultCompany.id,
+    },
+  });
+
+  // Also update password for legacy admin accounts if they exist
+  await prisma.user.updateMany({
     where: {
       OR: [
-        { email: superAdminEmail },
-        { roleId: superAdminRole.id },
         { email: 'admin@pos.com' },
         { email: 'admin@smartpos.com' },
       ],
     },
+    data: {
+      password: hashedPassword,
+      active: true,
+    },
   });
-
-  let superAdminUser;
-  if (existingUser) {
-    superAdminUser = await prisma.user.update({
-      where: { id: existingUser.id },
-      data: {
-        email: superAdminEmail,
-        password: hashedPassword,
-        name: superAdminName,
-        roleId: superAdminRole.id,
-        active: true,
-        companyId: defaultCompany.id,
-      },
-    });
-  } else {
-    superAdminUser = await prisma.user.create({
-      data: {
-        email: superAdminEmail,
-        password: hashedPassword,
-        name: superAdminName,
-        roleId: superAdminRole.id,
-        active: true,
-        companyId: defaultCompany.id,
-      },
-    });
-  }
 
   console.log('--------------------------------------------------');
   console.log('✓ Super Admin Account Configured:');
