@@ -335,6 +335,7 @@ export class ReportsService {
 
     const stockSummary = products.map((p) => {
       const isLowStock = p.stock <= p.minStockAlert;
+      const effectiveStock = Math.max(0, p.stock);
       return {
         id: p.id,
         name: p.name,
@@ -346,8 +347,8 @@ export class ReportsService {
         price: p.price,
         cost: p.cost,
         unit: p.unit,
-        valuation: Number((p.stock * p.cost).toFixed(2)),
-        retailValuation: Number((p.stock * p.price).toFixed(2)),
+        valuation: Number((effectiveStock * p.cost).toFixed(2)),
+        retailValuation: Number((effectiveStock * p.price).toFixed(2)),
       };
     });
 
