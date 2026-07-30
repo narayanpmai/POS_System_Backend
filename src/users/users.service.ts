@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
@@ -11,6 +11,7 @@ export class UsersService {
     if (reqUser.role.name !== 'Super Admin') {
       where.companyId = reqUser.companyId;
     }
+
     const users = await this.prisma.user.findMany({
       where,
       include: { role: true, company: true },
@@ -38,27 +39,25 @@ export class UsersService {
     }
 
     const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
-    if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
-      throw new BadRequestException('Only Super Admin can create a Super Admin');
-    }
+    if (!role) throw new BadRequestException('Role not found');
 
-    const companyId = (reqUser.role.name === 'Super Admin' && data.companyId) 
-      ? data.companyId 
+    const targetCompanyId = (reqUser.role.name === 'Super Admin' && data.companyId)
+      ? Number(data.companyId)
       : reqUser.companyId;
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const user = await this.prisma.user.create({
       data: {
-        name: data.name,
         email: data.email,
+        name: data.name,
         password: hashedPassword,
         roleId: data.roleId,
-        active: data.active ?? true,
-        companyId,
+        companyId: targetCompanyId,
+        active: true,
       },
-      include: { role: true }
+      include: { role: true, company: true }
     });
-    
+
     const { password, ...rest } = user;
     return rest;
   }
@@ -69,13 +68,6 @@ export class UsersService {
 
     if (reqUser.role.name !== 'Super Admin' && user.companyId !== reqUser.companyId) {
       throw new BadRequestException('Cannot update user from another company');
-    }
-
-    if (data.roleId) {
-      const role = await this.prisma.role.findUnique({ where: { id: data.roleId } });
-      if (role?.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
-        throw new BadRequestException('Only Super Admin can assign Super Admin role');
-      }
     }
 
     if (data.email && data.email !== user.email) {
@@ -90,6 +82,10 @@ export class UsersService {
       active: data.active
     };
 
+    if (reqUser.role.name === 'Super Admin' && data.companyId !== undefined && data.companyId !== null) {
+      updateData.companyId = Number(data.companyId);
+    }
+
     if (data.password) {
       updateData.password = await bcrypt.hash(data.password, 10);
     }
@@ -97,7 +93,7 @@ export class UsersService {
     const updated = await this.prisma.user.update({
       where: { id },
       data: updateData,
-      include: { role: true }
+      include: { role: true, company: true }
     });
 
     const { password, ...rest } = updated;
@@ -121,5 +117,43 @@ export class UsersService {
       data: { password: hashedPassword }
     });
     return { message: 'Password reset successfully' };
+  }
+
+  async remove(reqUser: any, id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { role: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (id === reqUser.id) {
+      throw new BadRequestException('You cannot delete your logged-in account');
+    }
+
+    if (reqUser.role.name !== 'Super Admin' && user.companyId !== reqUser.companyId) {
+      throw new BadRequestException('Cannot delete user from another company');
+    }
+
+    if (user.role.name === 'Super Admin' && reqUser.role.name !== 'Super Admin') {
+      throw new BadRequestException('Only Super Admin can delete a Super Admin account');
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      // Find a fallback user in the same company to reassign created transactions
+      const fallbackUser = await prisma.user.findFirst({
+        where: { companyId: user.companyId, NOT: { id } },
+      }) || await prisma.user.findFirst({ where: { role: { name: 'Super Admin' } } });
+
+      if (fallbackUser) {
+        await prisma.purchase.updateMany({ where: { userId: id }, data: { userId: fallbackUser.id } });
+        await prisma.sale.updateMany({ where: { cashierId: id }, data: { cashierId: fallbackUser.id } });
+        await prisma.inventoryTransaction.updateMany({ where: { userId: id }, data: { userId: fallbackUser.id } });
+      }
+
+      await prisma.activityLog.deleteMany({ where: { userId: id } });
+
+      await prisma.user.delete({ where: { id } });
+      return { success: true, message: `User "${user.name}" deleted successfully` };
+    });
   }
 }
