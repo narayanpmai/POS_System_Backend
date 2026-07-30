@@ -128,41 +128,67 @@ export class CompaniesService {
     if (!company) throw new NotFoundException('Company not found');
 
     return this.prisma.$transaction(async (prisma) => {
+      // Find all user IDs belonging to this company
+      const companyUsers = await prisma.user.findMany({
+        where: { companyId },
+        select: { id: true },
+      });
+      const companyUserIds = companyUsers.map((u) => u.id);
+
       // 1. Delete Sale Returns & Purchase Returns
-      await prisma.saleReturnItem.deleteMany({ where: { saleReturn: { companyId } } });
+      await prisma.saleReturnItem.deleteMany({
+        where: { OR: [{ saleReturn: { companyId } }, { saleReturn: { sale: { companyId } } }] },
+      });
       await prisma.saleReturn.deleteMany({ where: { companyId } });
-      await prisma.purchaseReturnItem.deleteMany({ where: { purchaseReturn: { companyId } } });
+
+      await prisma.purchaseReturnItem.deleteMany({
+        where: { OR: [{ purchaseReturn: { companyId } }, { purchaseReturn: { purchase: { companyId } } }] },
+      });
       await prisma.purchaseReturn.deleteMany({ where: { companyId } });
 
-      // 2. Delete Sales & Purchases
-      await prisma.saleItem.deleteMany({ where: { sale: { companyId } } });
-      await prisma.sale.deleteMany({ where: { companyId } });
+      // 2. Delete SaleItems & Sales
+      await prisma.saleItem.deleteMany({
+        where: { OR: [{ sale: { companyId } }, { sale: { cashierId: { in: companyUserIds } } }] },
+      });
+      await prisma.sale.deleteMany({
+        where: { OR: [{ companyId }, { cashierId: { in: companyUserIds } }] },
+      });
       await prisma.deletedSale.deleteMany({ where: { companyId } });
-      await prisma.purchaseItem.deleteMany({ where: { purchase: { companyId } } });
-      await prisma.purchase.deleteMany({ where: { companyId } });
 
-      // 3. Delete Stock & Transactions
-      await prisma.inventoryTransaction.deleteMany({ where: { companyId } });
+      // 3. Delete PurchaseItems & Purchases
+      await prisma.purchaseItem.deleteMany({
+        where: { OR: [{ purchase: { companyId } }, { purchase: { userId: { in: companyUserIds } } }] },
+      });
+      await prisma.purchase.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
+
+      // 4. Delete InventoryTransactions, JournalEntries, Payments, Shifts, Logs
+      await prisma.inventoryTransaction.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
       await prisma.journalEntryLine.deleteMany({ where: { journalEntry: { companyId } } });
       await prisma.journalEntry.deleteMany({ where: { companyId } });
       await prisma.rewardPointHistory.deleteMany({ where: { companyId } });
       await prisma.paymentTransaction.deleteMany({ where: { companyId } });
       await prisma.shift.deleteMany({ where: { companyId } });
-      await prisma.activityLog.deleteMany({ where: { companyId } });
+      await prisma.activityLog.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
 
-      // 4. Delete Products, Brands, Unit Conversions, Categories
+      // 5. Delete Products, Brands, Unit Conversions, Categories
       await prisma.unitConversion.deleteMany({ where: { companyId } });
       await prisma.product.deleteMany({ where: { companyId } });
       await prisma.brand.deleteMany({ where: { companyId } });
       await prisma.category.deleteMany({ where: { companyId } });
 
-      // 5. Delete Expenses & Incomes
+      // 6. Delete Expenses & Incomes
       await prisma.expense.deleteMany({ where: { companyId } });
       await prisma.expenseCategory.deleteMany({ where: { companyId } });
       await prisma.income.deleteMany({ where: { companyId } });
       await prisma.incomeCategory.deleteMany({ where: { companyId } });
 
-      // 6. Delete Customers & Suppliers
+      // 7. Delete Customers & Suppliers
       await prisma.customer.deleteMany({ where: { companyId } });
       await prisma.supplier.deleteMany({ where: { companyId } });
 
@@ -178,17 +204,78 @@ export class CompaniesService {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new NotFoundException('Company not found');
 
-    // 1. Flush operational data first
-    await this.flushCompanyData(companyId);
-
     return this.prisma.$transaction(async (prisma) => {
-      // 2. Delete remaining configuration entities
+      // Find all user IDs belonging to this company
+      const companyUsers = await prisma.user.findMany({
+        where: { companyId },
+        select: { id: true },
+      });
+      const companyUserIds = companyUsers.map((u) => u.id);
+
+      // 1. Delete all Return Items & Returns
+      await prisma.saleReturnItem.deleteMany({
+        where: { OR: [{ saleReturn: { companyId } }, { saleReturn: { sale: { companyId } } }] },
+      });
+      await prisma.saleReturn.deleteMany({ where: { companyId } });
+
+      await prisma.purchaseReturnItem.deleteMany({
+        where: { OR: [{ purchaseReturn: { companyId } }, { purchaseReturn: { purchase: { companyId } } }] },
+      });
+      await prisma.purchaseReturn.deleteMany({ where: { companyId } });
+
+      // 2. Delete all Sale Items & Sales
+      await prisma.saleItem.deleteMany({
+        where: { OR: [{ sale: { companyId } }, { sale: { cashierId: { in: companyUserIds } } }] },
+      });
+      await prisma.sale.deleteMany({
+        where: { OR: [{ companyId }, { cashierId: { in: companyUserIds } }] },
+      });
+      await prisma.deletedSale.deleteMany({ where: { companyId } });
+
+      // 3. Delete all Purchase Items & Purchases
+      await prisma.purchaseItem.deleteMany({
+        where: { OR: [{ purchase: { companyId } }, { purchase: { userId: { in: companyUserIds } } }] },
+      });
+      await prisma.purchase.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
+
+      // 4. Delete InventoryTransactions, JournalEntries, Payments, Shifts, Logs
+      await prisma.inventoryTransaction.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
+      await prisma.journalEntryLine.deleteMany({ where: { journalEntry: { companyId } } });
+      await prisma.journalEntry.deleteMany({ where: { companyId } });
+      await prisma.rewardPointHistory.deleteMany({ where: { companyId } });
+      await prisma.paymentTransaction.deleteMany({ where: { companyId } });
+      await prisma.shift.deleteMany({ where: { companyId } });
+      await prisma.activityLog.deleteMany({
+        where: { OR: [{ companyId }, { userId: { in: companyUserIds } }] },
+      });
+
+      // 5. Delete Products, Brands, Unit Conversions, Categories
+      await prisma.unitConversion.deleteMany({ where: { companyId } });
+      await prisma.product.deleteMany({ where: { companyId } });
+      await prisma.brand.deleteMany({ where: { companyId } });
+      await prisma.category.deleteMany({ where: { companyId } });
+
+      // 6. Delete Expenses & Incomes
+      await prisma.expense.deleteMany({ where: { companyId } });
+      await prisma.expenseCategory.deleteMany({ where: { companyId } });
+      await prisma.income.deleteMany({ where: { companyId } });
+      await prisma.incomeCategory.deleteMany({ where: { companyId } });
+
+      // 7. Delete Customers & Suppliers
+      await prisma.customer.deleteMany({ where: { companyId } });
+      await prisma.supplier.deleteMany({ where: { companyId } });
+
+      // 8. Delete Configuration entities
       await prisma.storeSetting.deleteMany({ where: { companyId } });
       await prisma.fiscalYear.deleteMany({ where: { companyId } });
       await prisma.membershipTier.deleteMany({ where: { companyId } });
       await prisma.account.deleteMany({ where: { companyId } });
 
-      // 3. Re-assign any Super Admin users tied to this company back to Company #1
+      // 9. Re-assign Super Admin users to Company #1
       const superAdminRole = await prisma.role.findUnique({ where: { name: 'Super Admin' } });
       if (superAdminRole) {
         await prisma.user.updateMany({
@@ -197,10 +284,10 @@ export class CompaniesService {
         });
       }
 
-      // 4. Delete all other Users belonging to this company
+      // 10. Delete all remaining Users belonging to this company
       await prisma.user.deleteMany({ where: { companyId } });
 
-      // 5. Delete Company record itself
+      // 11. Delete Company record itself
       await prisma.company.delete({ where: { id: companyId } });
 
       return { success: true, message: `Company "${company.name}" and all its data have been permanently deleted.` };
