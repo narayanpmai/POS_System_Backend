@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding database (Super Admin Only)...');
 
   // 1. Ensure Default Company exists
   const defaultCompany = await prisma.company.upsert({
@@ -19,9 +19,8 @@ async function main() {
       address: 'Kathmandu, Nepal',
     },
   });
-  console.log('✓ Default company verified.');
 
-  // 2. Ensure Roles exist
+  // 2. Ensure System Roles exist
   const superAdminRole = await prisma.role.upsert({
     where: { name: 'Super Admin' },
     update: {},
@@ -40,9 +39,7 @@ async function main() {
     create: { name: 'Cashier', description: 'POS sales cashier privileges' },
   });
 
-  console.log('✓ System roles verified.');
-
-  // 3. Clean and parse environment variables
+  // 3. Super Admin Account Creation / Verification ONLY
   const superAdminEmail = (process.env.SUPERADMIN_EMAIL || 'smartpanchpokhari@gmail.com').replace(/^["']|["']$/g, '').trim();
   const rawPassword = (process.env.SUPERADMIN_PASSWORD || 'admin123').replace(/^["']|["']$/g, '').trim();
   const superAdminName = (process.env.SUPERADMIN_NAME || 'Super Admin').replace(/^["']|["']$/g, '').trim();
@@ -50,7 +47,6 @@ async function main() {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(rawPassword, salt);
 
-  // Safely upsert target Super Admin account by email to avoid unique constraint collisions
   const superAdminUser = await prisma.user.upsert({
     where: { email: superAdminEmail },
     update: {
@@ -70,31 +66,11 @@ async function main() {
     },
   });
 
-  // Also update password and activate all company admin accounts if they exist
-  await prisma.user.updateMany({
-    where: {
-      OR: [
-        { email: 'beingsonam17@gmail.com' },
-        { email: 'smartpanchpokhari@gmail.com' },
-        { email: 'ito.melamchimun@gmail.com' },
-        { email: 'ito.panchpokharithangpalmun@gmail.com' },
-        { email: 'admin@koselighar.com' },
-        { email: 'admin@pos.com' },
-        { email: 'admin@smartpos.com' },
-      ],
-    },
-    data: {
-      password: hashedPassword,
-      active: true,
-    },
-  });
-
   console.log('--------------------------------------------------');
-  console.log('✓ Super Admin Account Configured:');
+  console.log('✓ Super Admin Account Verified:');
   console.log(`  Email:    ${superAdminUser.email}`);
-  console.log(`  Password: ${rawPassword}`);
   console.log('--------------------------------------------------');
-  console.log('🎉 Seeding completed successfully!');
+  console.log('🎉 Seeding completed!');
 }
 
 main()
