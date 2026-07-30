@@ -308,6 +308,7 @@ model StoreSetting {
   receiptFooter  String   @default("Please come again! Power by SmartPOS.")
   taxRateDefault Float    @default(13.0)
   invoicePrefix  String   @default("PTRM")
+  printCopies    Int      @default(2)
   updatedAt      DateTime @updatedAt
   companyId      Int      @default(1)
   company        Company  @relation(fields: [companyId], references: [id])

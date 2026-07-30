@@ -53,4 +53,11 @@ export class UpdateSettingsDto {
   @Max(100)
   @IsOptional()
   taxRateDefault?: number;
+
+  @ApiProperty({ example: 2, required: false })
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  @IsOptional()
+  printCopies?: number;
 }
