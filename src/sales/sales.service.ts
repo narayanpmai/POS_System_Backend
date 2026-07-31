@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSaleDto } from './dto/sales.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class SalesService {
@@ -15,9 +16,19 @@ export class SalesService {
     if (!activeFy) {
       throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
     }
+    if (activeFy.isClosed) {
+      throw new BadRequestException('The active fiscal year is closed. Financial entries are locked.');
+    }
     const txDate = new Date();
     if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
       throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
+    }
+
+    const closedFy = await this.prisma.fiscalYear.findFirst({
+      where: { companyId, isClosed: true, startDate: { lte: txDate }, endDate: { gte: txDate } },
+    });
+    if (closedFy) {
+      throw new BadRequestException(`Cannot record entries in closed Fiscal Year "${closedFy.name}". Financial ledger is locked.`);
     }
 
     // 1. Calculate values and validate stocks
@@ -173,37 +184,46 @@ export class SalesService {
         }
       }
 
-      // Accounting: Generate Journal Entry
-      // 1. Fetch Accounts
-      const accounts = await tx.account.findMany({ where: { companyId } });
-      const getAccId = (code: string) => accounts.find(a => a.code === code)?.id;
+      // Accounting: Generate Double-Entry Journal Entry
+      const defaultAccounts = [
+        { code: '1000', name: 'Cash on Hand', type: 'ASSET', description: 'Main Cash Account' },
+        { code: '1300', name: 'Inventory Asset', type: 'ASSET', description: 'Store Inventory Asset' },
+        { code: '2100', name: 'Sales Tax Payable', type: 'LIABILITY', description: 'VAT / Tax Obligations' },
+        { code: '4000', name: 'Sales Revenue', type: 'REVENUE', description: 'Revenue from POS Sales' },
+        { code: '5000', name: 'Cost of Goods Sold (COGS)', type: 'EXPENSE', description: 'Direct Product Cost' },
+      ];
 
-      const cashAcc = getAccId('1000');
-      const salesRevAcc = getAccId('4000');
-      const inventoryAcc = getAccId('1300');
-      const cogsAcc = getAccId('5000');
-      const taxAcc = getAccId('2100');
-
-      if (cashAcc && salesRevAcc && inventoryAcc && cogsAcc) {
-        const totalCost = itemsToCreate.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        
-        await tx.journalEntry.create({
-          data: {
-            companyId,
-            referenceNo: invoiceNo,
-            description: `POS Sale - ${invoiceNo}`,
-            lines: {
-              create: [
-                { accountId: cashAcc, debit: totalAmount, credit: 0, description: 'Cash Received' },
-                { accountId: salesRevAcc, debit: 0, credit: Number((subtotal - discountAmount).toFixed(2)), description: 'Sales Revenue' },
-                ...(taxAmount > 0 && taxAcc ? [{ accountId: taxAcc, debit: 0, credit: taxAmount, description: 'Sales Tax Payable' }] : []),
-                { accountId: cogsAcc, debit: totalCost, credit: 0, description: 'Cost of Goods Sold' },
-                { accountId: inventoryAcc, debit: 0, credit: totalCost, description: 'Inventory Reduction' },
-              ]
-            }
-          }
-        });
+      const accMap: Record<string, number> = {};
+      for (const acc of defaultAccounts) {
+        let existing = await tx.account.findFirst({ where: { code: acc.code, companyId } });
+        if (!existing) {
+          existing = await tx.account.create({
+            data: { code: acc.code, name: acc.name, type: acc.type, description: acc.description, companyId },
+          });
+        }
+        accMap[acc.code] = existing.id;
       }
+
+      const totalCost = itemsToCreate.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+
+      await tx.journalEntry.create({
+        data: {
+          companyId,
+          referenceNo: invoiceNo,
+          description: `POS Sale - ${invoiceNo}`,
+          lines: {
+            create: [
+              { accountId: accMap['1000'], debit: totalAmount, credit: 0, description: 'Cash Received' },
+              { accountId: accMap['4000'], debit: 0, credit: Number((subtotal - discountAmount).toFixed(2)), description: 'Sales Revenue' },
+              ...(taxAmount > 0 ? [{ accountId: accMap['2100'], debit: 0, credit: taxAmount, description: 'Sales Tax Payable' }] : []),
+              ...(totalCost > 0 ? [
+                { accountId: accMap['5000'], debit: totalCost, credit: 0, description: 'Cost of Goods Sold' },
+                { accountId: accMap['1300'], debit: 0, credit: totalCost, description: 'Inventory Reduction' },
+              ] : []),
+            ],
+          },
+        },
+      });
 
       return sale;
     });
@@ -216,12 +236,17 @@ export class SalesService {
     startDate?: string;
     endDate?: string;
     categoryId?: string;
+    cashierId?: number;
   }) {
-    const page = Math.max(1, query.page || 1);
-    const limit = Math.max(1, query.limit || 10);
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
     const skip = (page - 1) * limit;
 
     const where: any = { companyId };
+
+    if (query.cashierId) {
+      where.cashierId = query.cashierId;
+    }
 
     if (query.search) {
       where.OR = [
@@ -279,12 +304,9 @@ export class SalesService {
       this.prisma.sale.aggregate({ where, _sum: { totalAmount: true } }),
     ]);
 
+    const paginated = buildPaginatedResponse(items, total, page, limit);
     return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      ...paginated,
       totalSalesAmount: aggregate._sum.totalAmount || 0,
     };
   }

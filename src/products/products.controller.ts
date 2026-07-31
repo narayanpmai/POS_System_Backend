@@ -27,8 +27,16 @@ export class CategoriesController {
 
   @Get()
   @ApiOperation({ summary: 'List all product categories' })
-  findAllCategories(@Req() req: any) {
-    return this.productsService.findAllCategories(req.user.companyId);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  findAllCategories(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.productsService.findAllCategories(req.user.companyId, { search, page, limit });
   }
 
   @Get('tree')
@@ -107,8 +115,16 @@ export class ProductsController {
 
   @Get('categories')
   @ApiOperation({ summary: 'List all product categories' })
-  findAllCategories(@Req() req: any) {
-    return this.productsService.findAllCategories(req.user.companyId);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  findAllCategoriesAlias(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.productsService.findAllCategories(req.user.companyId, { search, page, limit });
   }
 
   @Get('categories/tree')
@@ -150,8 +166,8 @@ export class ProductsController {
   // ==========================================
 
   @Post()
-  @Roles('Admin')
-  @ApiOperation({ summary: 'Create new product (Admin Only)' })
+  @Roles('Admin', 'Super Admin', 'Cashier')
+  @ApiOperation({ summary: 'Create new product' })
   createProduct(@Body() dto: CreateProductDto, @Req() req: any) {
     const userId = req.user.id;
     return this.productsService.createProduct(req.user.companyId, dto, userId);
@@ -188,21 +204,21 @@ export class ProductsController {
   }
 
   @Put(':id')
-  @Roles('Admin')
-  @ApiOperation({ summary: 'Update product properties (Admin Only)' })
+  @Roles('Admin', 'Super Admin', 'Cashier')
+  @ApiOperation({ summary: 'Update product properties' })
   updateProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductDto) {
     return this.productsService.updateProduct(req.user.companyId, id, dto);
   }
 
   @Delete(':id')
-  @Roles('Admin')
+  @Roles('Admin', 'Super Admin')
   @ApiOperation({ summary: 'Delete product (Admin Only)' })
   removeProduct(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.productsService.removeProduct(req.user.companyId, id);
   }
 
   @Patch(':id/stock')
-  @Roles('Admin')
+  @Roles('Admin', 'Super Admin', 'Cashier')
   @ApiOperation({ summary: 'Manual stock adjust - stock in / stock out (Admin Only)' })
   updateStockManually(
     @Param('id', ParseIntPipe) id: number,

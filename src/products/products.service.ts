@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, CreateCategoryDto, UpdateCategoryDto } from './dto/products.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class ProductsService {
@@ -28,25 +29,52 @@ export class ProductsService {
     });
   }
 
-  async findAllCategories(companyId: number) {
-    const categories = await this.prisma.category.findMany({
-      where: { companyId },
-      include: {
-        parent: { select: { id: true, name: true } },
-        _count: { select: { products: true, children: true } }
-      },
-      orderBy: { name: 'asc' },
-    });
+  async findAllCategories(
+    companyId: number,
+    query: { search?: string; page?: number; limit?: number } = {},
+  ) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
 
-    // Auto-seed a default "General" category if company catalog has zero categories
-    if (categories.length === 0) {
-      const defaultCategory = await this.prisma.category.create({
-        data: { name: 'General', companyId }
-      });
-      return [{ ...defaultCategory, fullPath: 'General', level: 0, _count: { products: 0, children: 0 } }];
+    const where: any = { companyId };
+    if (query.search) {
+      where.name = { contains: query.search, mode: 'insensitive' };
     }
 
-    const catMap = new Map<number, any>(categories.map(c => [c.id, c]));
+    const [rawCategories, total] = await Promise.all([
+      this.prisma.category.findMany({
+        where,
+        include: {
+          parent: { select: { id: true, name: true } },
+          _count: { select: { products: true, children: true } },
+        },
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.category.count({ where }),
+    ]);
+
+    // Auto-seed a default "General" category if company catalog has zero categories
+    if (total === 0 && !query.search) {
+      const defaultCategory = await this.prisma.category.create({
+        data: { name: 'General', companyId },
+      });
+      return buildPaginatedResponse(
+        [{ ...defaultCategory, fullPath: 'General', level: 0, _count: { products: 0, children: 0 } }],
+        1,
+        1,
+        limit,
+      );
+    }
+
+    // Fetch all company categories to compute fullPath accurately across parent hierarchy
+    const allCompanyCats = await this.prisma.category.findMany({
+      where: { companyId },
+      select: { id: true, name: true, parentId: true },
+    });
+    const catMap = new Map<number, any>(allCompanyCats.map((c) => [c.id, c]));
 
     const getPathAndLevel = (catId: number): { fullPath: string; level: number } => {
       const cat = catMap.get(catId);
@@ -57,11 +85,11 @@ export class ProductsService {
       const parentInfo = getPathAndLevel(cat.parentId);
       return {
         fullPath: `${parentInfo.fullPath} > ${cat.name}`,
-        level: parentInfo.level + 1
+        level: parentInfo.level + 1,
       };
     };
 
-    return categories.map(cat => {
+    const items = rawCategories.map((cat) => {
       const { fullPath, level } = getPathAndLevel(cat.id);
       return {
         ...cat,
@@ -69,10 +97,13 @@ export class ProductsService {
         level,
       };
     });
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findCategoryTree(companyId: number) {
-    const allCategories = await this.findAllCategories(companyId);
+    const categoriesRes = await this.findAllCategories(companyId, { limit: 500 });
+    const allCategories = categoriesRes.items;
     const catMap = new Map<number, any>();
     
     allCategories.forEach(cat => {
@@ -190,11 +221,19 @@ export class ProductsService {
       dto.categoryId = category.id;
     }
 
+    // Auto-generate SKU if not provided or empty
+    let sku = dto.SKU?.trim();
+    if (!sku) {
+      const count = await this.prisma.product.count({ where: { companyId } });
+      const catPrefix = category?.name ? category.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, 'PRD') : 'PRD';
+      sku = `KG-${catPrefix || 'PRD'}-${String(count + 10001).padStart(5, '0')}`;
+    }
+
     // Check unique SKU
     const skuExists = await this.prisma.product.findUnique({
-      where: { SKU_companyId: { SKU: dto.SKU, companyId } },
+      where: { SKU_companyId: { SKU: sku, companyId } },
     });
-    if (skuExists) throw new BadRequestException('SKU must be unique');
+    if (skuExists) throw new BadRequestException(`SKU "${sku}" already exists`);
 
     // Check unique barcode
     if (dto.barcode) {
@@ -208,7 +247,7 @@ export class ProductsService {
     return this.prisma.product.create({
       data: {
         name: dto.name,
-        SKU: dto.SKU,
+        SKU: sku,
         barcode: dto.barcode || undefined,
         price: dto.price,
         cost: dto.cost,
@@ -226,8 +265,8 @@ export class ProductsService {
     companyId: number,
     query: { page?: number; limit?: number; search?: string; categoryId?: number; lowStockOnly?: boolean },
   ) {
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 20;
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const where: any = { companyId };
@@ -263,7 +302,7 @@ export class ProductsService {
       where.stock = { lte: this.prisma.product.fields.minStockAlert };
     }
 
-    const [items, total] = await Promise.all([
+    const [items, total, globalConversions] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
@@ -272,15 +311,37 @@ export class ProductsService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.product.count({ where }),
+      this.prisma.unitConversion.findMany({
+        where: { companyId, productId: null },
+      }),
     ]);
 
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    // Attach global unit conversions matching product.unit if no product-specific conversion exists
+    const enrichedItems = items.map((product) => {
+      const prodUnit = (product.unit || 'pcs').trim().toLowerCase();
+      const matchingGlobals = globalConversions.filter(
+        (g) => g.baseUnit.trim().toLowerCase() === prodUnit,
+      );
+
+      // Combine product-specific conversions with matching global conversions (avoiding duplicates)
+      const existingSecondaryUnits = new Set(
+        (product.unitConversions || []).map((uc) => uc.secondaryUnit.trim().toLowerCase()),
+      );
+
+      const mergedConversions = [...(product.unitConversions || [])];
+      for (const globalUc of matchingGlobals) {
+        if (!existingSecondaryUnits.has(globalUc.secondaryUnit.trim().toLowerCase())) {
+          mergedConversions.push(globalUc);
+        }
+      }
+
+      return {
+        ...product,
+        unitConversions: mergedConversions,
+      };
+    });
+
+    return buildPaginatedResponse(enrichedItems, total, page, limit);
   }
 
   async findProductById(companyId: number, id: number) {
@@ -288,8 +349,27 @@ export class ProductsService {
       where: { id },
       include: { category: true, unitConversions: true },
     });
-    if (!product || product.companyId !== companyId) throw new NotFoundException('Product not found');
-    return product;
+    if (!product || product.companyId !== companyId) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const prodUnit = (product.unit || 'pcs').trim().toLowerCase();
+    const globalConversions = await this.prisma.unitConversion.findMany({
+      where: { companyId, productId: null, baseUnit: { equals: prodUnit, mode: 'insensitive' } },
+    });
+
+    const existingSecondaryUnits = new Set(
+      (product.unitConversions || []).map((uc) => uc.secondaryUnit.trim().toLowerCase()),
+    );
+
+    const mergedConversions = [...(product.unitConversions || [])];
+    for (const globalUc of globalConversions) {
+      if (!existingSecondaryUnits.has(globalUc.secondaryUnit.trim().toLowerCase())) {
+        mergedConversions.push(globalUc);
+      }
+    }
+
+    return { ...product, unitConversions: mergedConversions };
   }
 
   async findProductByBarcode(companyId: number, barcode: string) {

@@ -3,7 +3,7 @@ import { IncomeCategoriesService } from './income-categories.service';
 import { CreateIncomeCategoryDto, UpdateIncomeCategoryDto } from './dto/income-categories.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('Income Categories')
 @ApiBearerAuth()
@@ -20,8 +20,16 @@ export class IncomeCategoriesController {
 
   @Get()
   @ApiOperation({ summary: 'Get all income categories' })
-  findAll(@Req() req: any, @Query('search') search?: string) {
-    return this.categoriesService.findAll(req.user.companyId, search);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  findAll(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.categoriesService.findAll(req.user.companyId, search, page, limit);
   }
 
   @Get(':id')

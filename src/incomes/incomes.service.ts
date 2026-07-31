@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateIncomeDto, UpdateIncomeDto } from './dto/incomes.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class IncomesService {
@@ -16,24 +17,63 @@ export class IncomesService {
       throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
     }
 
-    return this.prisma.income.create({
-      data: {
-        referenceNo: dto.referenceNo,
-        category: dto.category,
-        amount: dto.amount,
-        description: dto.description,
-        date: txDate,
-        companyId,
+    return this.prisma.$transaction(async (tx) => {
+      const income = await tx.income.create({
+        data: {
+          referenceNo: dto.referenceNo,
+          category: dto.category,
+          amount: dto.amount,
+          description: dto.description,
+          date: txDate,
+          companyId,
+        }
+      });
+
+      // Accounting: Generate Double-Entry Journal Entry
+      const defaultAccounts = [
+        { code: '1000', name: 'Cash on Hand', type: 'ASSET', description: 'Main Cash Account' },
+        { code: '4100', name: 'Other Income', type: 'REVENUE', description: 'Miscellaneous Income' },
+      ];
+
+      const accMap: Record<string, number> = {};
+      for (const acc of defaultAccounts) {
+        let existing = await tx.account.findFirst({ where: { code: acc.code, companyId } });
+        if (!existing) {
+          existing = await tx.account.create({
+            data: { code: acc.code, name: acc.name, type: acc.type, description: acc.description, companyId },
+          });
+        }
+        accMap[acc.code] = existing.id;
       }
+
+      await tx.journalEntry.create({
+        data: {
+          companyId,
+          referenceNo: dto.referenceNo || `INC-${income.id}`,
+          description: `Income (${dto.category}): ${dto.description || 'Other Income'}`,
+          lines: {
+            create: [
+              { accountId: accMap['1000'], debit: Number(dto.amount), credit: 0, description: 'Cash Received for Income' },
+              { accountId: accMap['4100'], debit: 0, credit: Number(dto.amount), description: `Revenue - ${dto.category}` },
+            ],
+          },
+        },
+      });
+
+      return income;
     });
   }
 
-  async findAll(companyId: number, search?: string, category?: string) {
+  async findAll(companyId: number, search?: string, category?: string, pageQuery = 1, limitQuery = 10) {
+    const page = Math.max(1, Number(pageQuery) || 1);
+    const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
+    const skip = (page - 1) * limit;
+
     const where: any = { companyId };
     if (search) {
       where.OR = [
-        { referenceNo: { contains: search } },
-        { description: { contains: search } }
+        { referenceNo: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
     }
     if (category) {
@@ -48,10 +88,17 @@ export class IncomesService {
       };
     }
 
-    return this.prisma.income.findMany({
-      where,
-      orderBy: { date: 'desc' },
-    });
+    const [items, total] = await Promise.all([
+      this.prisma.income.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.income.count({ where }),
+    ]);
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {

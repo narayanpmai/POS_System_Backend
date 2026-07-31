@@ -7,8 +7,12 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
+import * as cookieParser from 'cookie-parser';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(cookieParser());
 
   // Serve static uploads (category images, etc.)
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
@@ -43,19 +47,22 @@ async function bootstrap() {
     }),
   );
 
-  // Setup Swagger API Documentation
-  const config = new DocumentBuilder()
-    .setTitle('Koselighar API')
-    .setDescription('Production-Ready Backend API for Koselighar System')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
   const port = process.env.PORT || 8001;
+
+  // Setup Swagger API Documentation (Disabled if ENABLE_SWAGGER=false)
+  if (process.env.ENABLE_SWAGGER === 'true') {
+    const config = new DocumentBuilder()
+      .setTitle('Koselighar API')
+      .setDescription('Production-Ready Backend API for Koselighar System')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document);
+    console.log(`API Swagger Documentation: http://localhost:${port}/api/docs`);
+  }
+
   await app.listen(port, '0.0.0.0');
   console.log(`Koselighar Backend running on: http://localhost:${port}`);
-  console.log(`API Swagger Documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();

@@ -37,7 +37,17 @@ export class SalesController {
     @Query('endDate') endDate?: string,
     @Query('categoryId') categoryId?: string,
   ) {
-    return this.salesService.findAllSales(req.user.companyId, { page, limit, search, startDate, endDate, categoryId });
+    const isCashier = req.user?.role?.name === 'Cashier';
+    const cashierIdFilter = isCashier ? req.user.id : undefined;
+    return this.salesService.findAllSales(req.user.companyId, {
+      page,
+      limit,
+      search,
+      startDate,
+      endDate,
+      categoryId,
+      cashierId: cashierIdFilter,
+    });
   }
 
   @Get('deleted')

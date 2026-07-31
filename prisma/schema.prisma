@@ -44,6 +44,8 @@ model Company {
   saleReturns           SaleReturn[]
   PaymentTransaction    PaymentTransaction[]
   unitConversions       UnitConversion[]
+  userSessions          UserSession[]
+  auditLogs             AuditLog[]
 }
 
 model User {
@@ -54,6 +56,8 @@ model User {
   roleId                Int
   role                  Role                   @relation(fields: [roleId], references: [id])
   active                Boolean                @default(true)
+  failedLoginAttempts   Int                    @default(0)
+  lockoutUntil          DateTime?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   sales                 Sale[]
@@ -61,6 +65,8 @@ model User {
   activityLogs          ActivityLog[]
   inventoryTransactions InventoryTransaction[]
   purchases             Purchase[]
+  sessions              UserSession[]
+  auditLogs             AuditLog[]
   companyId             Int                    @default(1)
   company               Company                @relation(fields: [companyId], references: [id])
 }
@@ -216,8 +222,8 @@ model InventoryTransaction {
   reason     String? // e.g. "Purchase", "Sale", "Damage", "Return"
   supplierId Int?
   supplier   Supplier? @relation(fields: [supplierId], references: [id])
-  userId     Int
-  user       User      @relation(fields: [userId], references: [id])
+  userId     Int?
+  user       User?     @relation(fields: [userId], references: [id])
   createdAt  DateTime  @default(now())
   companyId  Int       @default(1)
   company    Company   @relation(fields: [companyId], references: [id])
@@ -329,15 +335,17 @@ model ExpenseCategory {
 }
 
 model FiscalYear {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String // e.g. "2080/081"
   startDate DateTime
   endDate   DateTime
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  companyId Int      @default(1)
-  company   Company  @relation(fields: [companyId], references: [id])
+  isActive  Boolean   @default(false)
+  isClosed  Boolean   @default(false)
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  companyId Int       @default(1)
+  company   Company   @relation(fields: [companyId], references: [id])
 
   @@unique([name, companyId])
 }
@@ -536,4 +544,35 @@ model UnitConversion {
   
   companyId        Int      @default(1)
   company          Company  @relation(fields: [companyId], references: [id])
+}
+
+// =========================
+// SESSION & SECURITY MODULE
+// =========================
+
+model UserSession {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken String   @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  companyId    Int      @default(1)
+  company      Company  @relation(fields: [companyId], references: [id])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g., "CREATE_PRODUCT", "UPDATE_PRODUCT", "LOGIN", "FAILED_LOGIN"
+  resource   String   // e.g., "products", "users", "auth"
+  resourceId String?  // e.g., "12"
+  details    String?  // JSON string or summary
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  companyId  Int      @default(1)
+  company    Company  @relation(fields: [companyId], references: [id])
 }

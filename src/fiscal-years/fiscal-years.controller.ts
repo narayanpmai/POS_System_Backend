@@ -46,6 +46,20 @@ export class FiscalYearsController {
     return this.fiscalYearsService.setActive(req.user.companyId, id);
   }
 
+  @Get(':id/rollover-summary')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Get financial summary for fiscal year rollover' })
+  getRolloverSummary(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.fiscalYearsService.getRolloverSummary(req.user.companyId, id);
+  }
+
+  @Post(':id/close')
+  @Roles('Admin')
+  @ApiOperation({ summary: 'Close fiscal year and carry forward stock (Admin only)' })
+  closeFiscalYear(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() nextFyDto?: any) {
+    return this.fiscalYearsService.closeFiscalYear(req.user.companyId, id, nextFyDto);
+  }
+
   @Delete(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Delete a fiscal year (Admin only)' })

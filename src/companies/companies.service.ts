@@ -1,20 +1,42 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class CompaniesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
-    return this.prisma.company.findMany({
-      include: {
-        users: {
-          select: { id: true, name: true, email: true, active: true, role: { select: { name: true } } },
+  async findAll(query: { page?: number; limit?: number; search?: string } = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { phone: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.company.findMany({
+        where,
+        include: {
+          users: {
+            select: { id: true, name: true, email: true, active: true, role: { select: { name: true } } },
+          },
         },
-      },
-      orderBy: { id: 'asc' },
-    });
+        orderBy: { id: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.company.count({ where }),
+    ]);
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(id: number) {

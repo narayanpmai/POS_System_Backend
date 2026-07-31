@@ -54,10 +54,10 @@ export class CreateProductDto {
   @IsNotEmpty({ message: 'Product name is required' })
   name: string;
 
-  @ApiProperty({ example: 'ELE-DISP-27', description: 'SKU Code' })
+  @ApiProperty({ example: 'ELE-DISP-27', description: 'SKU Code (auto-generated if left empty)', required: false })
   @IsString()
-  @IsNotEmpty({ message: 'SKU is required' })
-  SKU: string;
+  @IsOptional()
+  SKU?: string;
 
   @ApiProperty({ example: '880901234501', description: 'Barcode value', required: false })
   @IsString()

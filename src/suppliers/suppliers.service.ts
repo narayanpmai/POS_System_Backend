@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto, UpdateSupplierDto } from './dto/suppliers.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class SuppliersService {
@@ -28,13 +29,16 @@ export class SuppliersService {
     });
   }
 
-  async findAll(companyId: number, search?: string, page = 1, limit = 100) {
+  async findAll(companyId: number, search?: string, pageQuery = 1, limitQuery = 10) {
+    const page = Math.max(1, Number(pageQuery) || 1);
+    const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
+
     const where: any = { companyId };
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { phone: { contains: search } },
-        { email: { contains: search } }
+        { name: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -49,13 +53,7 @@ export class SuppliersService {
       this.prisma.supplier.count({ where }),
     ]);
 
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {

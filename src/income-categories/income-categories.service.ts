@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateIncomeCategoryDto, UpdateIncomeCategoryDto } from './dto/income-categories.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class IncomeCategoriesService {
@@ -23,18 +24,30 @@ export class IncomeCategoriesService {
     });
   }
 
-  async findAll(companyId: number, search?: string) {
+  async findAll(companyId: number, search?: string, pageQuery = 1, limitQuery = 10) {
+    const page = Math.max(1, Number(pageQuery) || 1);
+    const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
+    const skip = (page - 1) * limit;
+
     const where: any = { companyId };
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } }
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
     }
-    return this.prisma.incomeCategory.findMany({
-      where,
-      orderBy: { id: 'asc' },
-    });
+
+    const [items, total] = await Promise.all([
+      this.prisma.incomeCategory.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.incomeCategory.count({ where }),
+    ]);
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {

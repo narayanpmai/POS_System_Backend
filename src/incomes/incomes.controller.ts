@@ -24,8 +24,10 @@ export class IncomesController {
     @Req() req: any,
     @Query('search') search?: string,
     @Query('category') category?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
-    return this.incomesService.findAll(req.user.companyId, search, category);
+    return this.incomesService.findAll(req.user.companyId, search, category, page, limit);
   }
 
   @Get(':id')

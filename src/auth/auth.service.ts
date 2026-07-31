@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, Logger } from '
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { LoginDto, RegisterDto } from './dto/auth.dto';
 
 @Injectable()
@@ -13,7 +14,7 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, clientIp?: string, userAgent?: string) {
     const cleanEmail = dto.email?.trim().toLowerCase();
     this.logger.log(`🔑 Login request received for email: ${cleanEmail}`);
 
@@ -22,7 +23,7 @@ export class AuthService {
       include: { role: true },
     });
 
-    // Fallback: If not found by User email, check if email matches a Company email
+    // Fallback: Check if email matches Company email
     if (!user) {
       const company = await this.prisma.company.findFirst({
         where: { email: { equals: cleanEmail, mode: 'insensitive' } },
@@ -33,9 +34,6 @@ export class AuthService {
           include: { role: true },
           orderBy: { id: 'asc' },
         });
-        if (user) {
-          this.logger.log(`⚡ Found Admin user for Company (${company.name}): ${user.email}`);
-        }
       }
     }
 
@@ -44,9 +42,35 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Brute Force Lockout check
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const remainingMins = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / (60 * 1000));
+      this.logger.warn(`❌ Account locked for user: ${cleanEmail} until ${user.lockoutUntil}`);
+      throw new UnauthorizedException(`Account locked due to 5 failed attempts. Please try again in ${remainingMins} minutes.`);
+    }
+
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) {
-      this.logger.warn(`❌ Login failed: Invalid password for ${dto.email}`);
+      const newFailedAttempts = (user.failedLoginAttempts || 0) + 1;
+      let lockoutUntil: Date | null = null;
+      if (newFailedAttempts >= 5) {
+        lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minute lock
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: newFailedAttempts,
+          lockoutUntil,
+        },
+      });
+
+      if (newFailedAttempts >= 5) {
+        this.logger.warn(`⛔ Account locked for 15 mins for ${cleanEmail} after 5 failed attempts`);
+        throw new UnauthorizedException('Account locked for 15 minutes due to 5 consecutive failed login attempts.');
+      }
+
+      this.logger.warn(`❌ Login failed: Invalid password for ${dto.email} (Attempt ${newFailedAttempts}/5)`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -57,35 +81,43 @@ export class AuthService {
           data: { active: true },
         });
         user.active = true;
-        this.logger.log(`⚡ Auto-reactivated ${user.role?.name} account: ${user.email}`);
       } else {
-        this.logger.warn(`❌ Login failed: Account deactivated for ${dto.email}`);
         throw new UnauthorizedException('Your account has been deactivated');
       }
     }
 
-    // Auto-associate Admin user to their company if email matches company email
-    if (user.role?.name === 'Admin') {
-      const matchedCompany = await this.prisma.company.findFirst({
-        where: { email: user.email },
-      });
-      if (matchedCompany && user.companyId !== matchedCompany.id) {
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { companyId: matchedCompany.id },
-        });
-        user.companyId = matchedCompany.id;
-        this.logger.log(`⚡ Auto-associated Admin ${user.email} to Company ID: ${matchedCompany.id} (${matchedCompany.name})`);
-      }
-    }
-
-    this.logger.log(`✅ Login SUCCESSFUL: User ${user.email} (Role: ${user.role.name}, Company ID: ${user.companyId})`);
+    // Reset failed attempts on success
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockoutUntil: null,
+      },
+    });
 
     const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
+    const accessToken = this.jwtService.sign(payload);
+
+    // Create UserSession
+    const refreshToken = randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.prisma.userSession.create({
+      data: {
+        userId: user.id,
+        companyId: user.companyId,
+        refreshToken,
+        ipAddress: clientIp || '127.0.0.1',
+        userAgent: userAgent || 'Unknown Device',
+        expiresAt,
+      },
+    });
+
     const { password, ...userWithoutPassword } = user;
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: accessToken,
+      refresh_token: refreshToken,
       user: userWithoutPassword,
     };
   }
@@ -97,7 +129,6 @@ export class AuthService {
     });
 
     if (exists) {
-      this.logger.warn(`❌ Registration failed: Email already registered (${dto.email})`);
       throw new BadRequestException('Email already registered');
     }
 
@@ -125,14 +156,58 @@ export class AuthService {
       include: { role: true },
     });
 
-    this.logger.log(`✅ Registration SUCCESSFUL: User ${user.email}`);
-
     const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
     const { password, ...userWithoutPassword } = user;
 
     return {
       access_token: this.jwtService.sign(payload),
       user: userWithoutPassword,
+    };
+  }
+
+  async logout(userId: number, refreshToken?: string) {
+    if (refreshToken) {
+      await this.prisma.userSession.deleteMany({
+        where: { userId, refreshToken },
+      });
+    } else {
+      await this.prisma.userSession.deleteMany({
+        where: { userId },
+      });
+    }
+    return { message: 'Logged out successfully, session cleared' };
+  }
+
+  async refreshToken(refreshToken: string) {
+    const session = await this.prisma.userSession.findUnique({
+      where: { refreshToken },
+      include: { user: { include: { role: true } } },
+    });
+
+    if (!session || session.expiresAt < new Date()) {
+      if (session) {
+        await this.prisma.userSession.delete({ where: { id: session.id } });
+      }
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const user = session.user;
+    const payload = { email: user.email, sub: user.id, role: user.role.name, companyId: user.companyId };
+    const newAccessToken = this.jwtService.sign(payload);
+    const newRefreshToken = randomUUID();
+
+    // Rotate refresh token
+    await this.prisma.userSession.update({
+      where: { id: session.id },
+      data: {
+        refreshToken: newRefreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      access_token: newAccessToken,
+      refresh_token: newRefreshToken,
     };
   }
 

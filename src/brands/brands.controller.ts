@@ -20,8 +20,13 @@ export class BrandsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all brands' })
-  findAll(@Req() req: any, @Query('search') search?: string) {
-    return this.brandsService.findAll(req.user.companyId, search);
+  findAll(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.brandsService.findAll(req.user.companyId, search, page, limit);
   }
 
   @Get(':id')

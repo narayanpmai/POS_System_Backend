@@ -1,6 +1,13 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TenantMiddleware } from './auth/tenant.middleware';
+import { RequestIdMiddleware } from './common/middlewares/request-id.middleware';
+import { AllowedHostMiddleware } from './common/middlewares/allowed-host.middleware';
+import { SanitizeInterceptor } from './common/interceptors/sanitize.interceptor';
+import { ExcludePasswordInterceptor } from './common/interceptors/exclude-password.interceptor';
+import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -25,12 +32,14 @@ import { PaymentsModule } from './payments/payments.module';
 import { SalesReturnsModule } from './sales-returns/sales-returns.module';
 import { PurchaseReturnsModule } from './purchase-returns/purchase-returns.module';
 import { UnitConversionsModule } from './unit-conversions/unit-conversions.module';
+import { ShiftsModule } from './shifts/shifts.module';
 
 @Module({
   imports: [
     // Load environment variables globally
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: ['.env.development', '.env'],
     }),
     PrismaModule,
     AuthModule,
@@ -56,12 +65,28 @@ import { UnitConversionsModule } from './unit-conversions/unit-conversions.modul
     SalesReturnsModule,
     PurchaseReturnsModule,
     UnitConversionsModule,
+    ShiftsModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: SanitizeInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ExcludePasswordInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TimeoutInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantMiddleware).forRoutes('*');
+    consumer
+      .apply(RequestIdMiddleware, AllowedHostMiddleware, TenantMiddleware)
+      .forRoutes('*');
   }
 }

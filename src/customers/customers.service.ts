@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customers.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class CustomersService {
@@ -19,8 +20,8 @@ export class CustomersService {
   }
 
   async findAll(companyId: number, query: { page?: number; limit?: number; search?: string }) {
-    const page = Math.max(1, query.page || 1);
-    const limit = Math.max(1, query.limit || 10);
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
     const skip = (page - 1) * limit;
 
     const where: any = { companyId };
@@ -44,13 +45,7 @@ export class CustomersService {
       this.prisma.customer.count({ where }),
     ]);
 
-    return {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(id: number) {

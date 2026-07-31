@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBrandDto, UpdateBrandDto } from './dto/brands.dto';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 function slugify(text: string): string {
   return text
@@ -43,18 +44,30 @@ export class BrandsService {
     });
   }
 
-  async findAll(companyId: number, search?: string) {
+  async findAll(companyId: number, search?: string, pageQuery = 1, limitQuery = 10) {
+    const page = Math.max(1, Number(pageQuery) || 1);
+    const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
+    const skip = (page - 1) * limit;
+
     const where: any = { companyId };
     if (search) {
       where.OR = [
-        { name: { contains: search } },
-        { slug: { contains: search } }
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } }
       ];
     }
-    return this.prisma.brand.findMany({
-      where,
-      orderBy: { id: 'asc' },
-    });
+
+    const [items, total] = await Promise.all([
+      this.prisma.brand.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { id: 'asc' },
+      }),
+      this.prisma.brand.count({ where }),
+    ]);
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {

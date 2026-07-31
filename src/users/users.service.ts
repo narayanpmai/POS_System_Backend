@@ -1,27 +1,47 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(reqUser: any) {
+  async findAll(reqUser: any, query: { page?: number; limit?: number; search?: string } = {}) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
+
     let where: any = {};
     if (reqUser.role.name !== 'Super Admin') {
       where.companyId = reqUser.companyId;
     }
 
-    const users = await this.prisma.user.findMany({
-      where,
-      include: { role: true, company: true },
-      orderBy: { createdAt: 'desc' }
-    });
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        include: { role: true, company: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
     // Strip passwords before returning
-    return users.map(u => {
+    const items = users.map(u => {
       const { password, ...rest } = u;
       return rest;
     });
+
+    return buildPaginatedResponse(items, total, page, limit);
   }
 
   async getRoles(reqUser: any) {
@@ -155,5 +175,51 @@ export class UsersService {
       await prisma.user.delete({ where: { id } });
       return { success: true, message: `User "${user.name}" deleted successfully` };
     });
+  }
+
+  async getSessions(reqUser: any) {
+    const sessions = await this.prisma.userSession.findMany({
+      where: reqUser.role.name === 'Super Admin' ? {} : { userId: reqUser.id },
+      orderBy: { createdAt: 'desc' },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    return sessions.map((s) => ({
+      id: s.id,
+      deviceName: s.userAgent || 'Unknown Device',
+      deviceType: s.userAgent?.toLowerCase().includes('mobile') ? 'mobile' : 'desktop',
+      ipAddress: s.ipAddress || '127.0.0.1',
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      userName: s.user?.name,
+      userEmail: s.user?.email,
+    }));
+  }
+
+  async getSessionStats(reqUser: any) {
+    const sessions = await this.prisma.userSession.findMany({
+      where: reqUser.role.name === 'Super Admin' ? {} : { userId: reqUser.id },
+    });
+
+    const uniqueIPs = new Set(sessions.map((s) => s.ipAddress).filter(Boolean)).size;
+    const uniqueDevices = new Set(sessions.map((s) => s.userAgent).filter(Boolean)).size;
+
+    return {
+      totalSessions: sessions.length,
+      uniqueIPs,
+      uniqueDevices,
+    };
+  }
+
+  async revokeSession(reqUser: any, sessionId: number) {
+    const session = await this.prisma.userSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Session not found');
+
+    if (reqUser.role.name !== 'Super Admin' && session.userId !== reqUser.id) {
+      throw new BadRequestException('You do not have permission to revoke this session');
+    }
+
+    await this.prisma.userSession.delete({ where: { id: sessionId } });
+    return { message: 'Session revoked successfully' };
   }
 }
