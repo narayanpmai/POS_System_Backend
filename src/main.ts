@@ -12,6 +12,9 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Trust Nginx reverse proxy headers for secure HttpOnly cookies over HTTPS
+  app.set('trust proxy', 1);
+
   app.use(cookieParser());
 
   // Serve static uploads (category images, etc.)
