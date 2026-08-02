@@ -126,11 +126,13 @@ jobs:
             cp "$ENV_DIR/.env" "$DEPLOY_DIR/.env"
             cp "$ENV_DIR/.env" "$DEPLOY_DIR/.env.development" 2>/dev/null || true
             echo "✓ Copied .env to $DEPLOY_DIR/.env"
-          else
-            echo "⚠️ Warning: No env file found in $ENV_DIR"
-          fi
-
           chmod 644 "$DEPLOY_DIR/.env"* 2>/dev/null || true
+
+          # Convert laptop Termius tunnel port (5555) to native VPS PostgreSQL port (5432) for server execution
+          if grep -q ":5555" "$DEPLOY_DIR/.env"; then
+            sed -i 's/:5555/:5432/g' "$DEPLOY_DIR/.env"
+            echo "✓ Automatically adjusted DATABASE_URL port from 5555 (laptop tunnel) to 5432 (VPS native PostgreSQL)"
+          fi
 
       - name: Push database schema changes (prod)
         shell: bash
