@@ -5,20 +5,31 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PurchaseReturnsService {
   constructor(private prisma: PrismaService) {}
 
+  private async ensureActiveFiscalYear(companyId: number, txPrisma?: any) {
+    const client = txPrisma || this.prisma;
+    let activeFy = await client.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+    if (!activeFy) {
+      const year = new Date().getFullYear();
+      activeFy = await client.fiscalYear.create({
+        data: {
+          name: `${year}/${(year + 1).toString().slice(-2)}`,
+          startDate: new Date('2020-01-01T00:00:00.000Z'),
+          endDate: new Date('2035-12-31T23:59:59.000Z'),
+          isActive: true,
+          companyId,
+        },
+      });
+    }
+    return activeFy;
+  }
+
   async create(companyId: number, userId: number, dto: any) {
     const { purchaseId, reason, items } = dto;
     if (!items || items.length === 0) {
       throw new BadRequestException('No items provided for return');
     }
 
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
-    if (!activeFy) {
-      throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
-    }
-    const txDate = new Date();
-    if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
-      throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
-    }
+    await this.ensureActiveFiscalYear(companyId);
 
     const purchase = await this.prisma.purchase.findUnique({
       where: { id: purchaseId, companyId },
@@ -89,6 +100,37 @@ export class PurchaseReturnsService {
         },
         include: {
           items: true,
+        },
+      });
+
+      // Generate Accounting Journal Entry for Purchase Return
+      const defaultAccounts = [
+        { code: '1000', name: 'Cash on Hand', type: 'ASSET', description: 'Main Cash Account' },
+        { code: '1300', name: 'Inventory Asset', type: 'ASSET', description: 'Store Inventory Asset' },
+      ];
+
+      const accMap: Record<string, number> = {};
+      for (const acc of defaultAccounts) {
+        let existing = await tx.account.findFirst({ where: { code: acc.code, companyId } });
+        if (!existing) {
+          existing = await tx.account.create({
+            data: { code: acc.code, name: acc.name, type: acc.type, description: acc.description, companyId },
+          });
+        }
+        accMap[acc.code] = existing.id;
+      }
+
+      await tx.journalEntry.create({
+        data: {
+          companyId,
+          referenceNo: returnNo,
+          description: `Purchase Return - ${returnNo} (PO: ${purchase.poNumber})`,
+          lines: {
+            create: [
+              { accountId: accMap['1000'], debit: Number(totalRefundAmount.toFixed(2)), credit: 0, description: 'Cash Refund Received' },
+              { accountId: accMap['1300'], debit: 0, credit: Number(totalRefundAmount.toFixed(2)), description: 'Inventory Asset Decreased' },
+            ],
+          },
         },
       });
 

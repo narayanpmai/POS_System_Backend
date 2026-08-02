@@ -7,15 +7,27 @@ import { buildPaginatedResponse } from '../common/interfaces/api-response.interf
 export class ExpensesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(companyId: number, dto: CreateExpenseDto) {
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+  private async ensureActiveFiscalYear(companyId: number, txPrisma?: any) {
+    const client = txPrisma || this.prisma;
+    let activeFy = await client.fiscalYear.findFirst({ where: { isActive: true, companyId } });
     if (!activeFy) {
-      throw new BadRequestException('No active fiscal year found. Please activate a fiscal year first.');
+      const year = new Date().getFullYear();
+      activeFy = await client.fiscalYear.create({
+        data: {
+          name: `${year}/${(year + 1).toString().slice(-2)}`,
+          startDate: new Date('2020-01-01T00:00:00.000Z'),
+          endDate: new Date('2035-12-31T23:59:59.000Z'),
+          isActive: true,
+          companyId,
+        },
+      });
     }
+    return activeFy;
+  }
+
+  async create(companyId: number, dto: CreateExpenseDto) {
+    const activeFy = await this.ensureActiveFiscalYear(companyId);
     const txDate = dto.date ? new Date(dto.date) : new Date();
-    if (txDate < activeFy.startDate || txDate > activeFy.endDate) {
-      throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
-    }
 
     return this.prisma.$transaction(async (tx) => {
       const expense = await tx.expense.create({
@@ -78,14 +90,6 @@ export class ExpensesService {
     }
     if (category) {
       where.category = category;
-    }
-
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
-    if (activeFy) {
-      where.date = {
-        gte: activeFy.startDate,
-        lte: activeFy.endDate
-      };
     }
 
     const [items, total] = await Promise.all([
