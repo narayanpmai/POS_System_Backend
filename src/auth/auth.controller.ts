@@ -10,11 +10,12 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private setAuthCookies(res: any, accessToken: string, refreshToken?: string) {
+    const isProduction = process.env.NODE_ENV === 'production';
     if (accessToken) {
       res.cookie('access_token', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'lax' : 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/',
       });
@@ -23,8 +24,8 @@ export class AuthController {
     if (refreshToken) {
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'lax' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       });
