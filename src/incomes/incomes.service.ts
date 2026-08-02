@@ -79,7 +79,6 @@ export class IncomesService {
   async findAll(companyId: number, search?: string, category?: string, pageQuery = 1, limitQuery = 10) {
     const page = Math.max(1, Number(pageQuery) || 1);
     const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
-    const skip = (page - 1) * limit;
 
     const where: any = { companyId };
     if (search) {
@@ -88,21 +87,43 @@ export class IncomesService {
         { description: { contains: search, mode: 'insensitive' } }
       ];
     }
-    if (category) {
+    if (category && category !== 'POS Sales Revenue') {
       where.category = category;
     }
 
-    const [items, total] = await Promise.all([
-      this.prisma.income.findMany({
+    const [manualIncomes, sales] = await Promise.all([
+      category === 'POS Sales Revenue' ? [] : this.prisma.income.findMany({
         where,
-        skip,
-        take: limit,
         orderBy: { date: 'desc' },
       }),
-      this.prisma.income.count({ where }),
+      category && category !== 'POS Sales Revenue' ? [] : this.prisma.sale.findMany({
+        where: search
+          ? { companyId, invoiceNo: { contains: search, mode: 'insensitive' } }
+          : { companyId },
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
 
-    return buildPaginatedResponse(items, total, page, limit);
+    const mappedSales = sales.map((sale) => ({
+      id: `sale-${sale.id}`,
+      referenceNo: sale.invoiceNo,
+      category: 'POS Sales Revenue',
+      amount: sale.totalAmount,
+      description: `POS Sale Receipt (${sale.paymentMethod || 'CASH'})`,
+      date: sale.createdAt,
+      createdAt: sale.createdAt,
+      companyId: sale.companyId,
+      isSaleRecord: true,
+    }));
+
+    const combined = [...manualIncomes, ...mappedSales].sort(
+      (a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()
+    );
+
+    const total = combined.length;
+    const paginatedItems = combined.slice((page - 1) * limit, page * limit);
+
+    return buildPaginatedResponse(paginatedItems, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {

@@ -79,7 +79,6 @@ export class ExpensesService {
   async findAll(companyId: number, search?: string, category?: string, pageQuery = 1, limitQuery = 10) {
     const page = Math.max(1, Number(pageQuery) || 1);
     const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
-    const skip = (page - 1) * limit;
 
     const where: any = { companyId };
     if (search) {
@@ -88,21 +87,43 @@ export class ExpensesService {
         { description: { contains: search, mode: 'insensitive' } }
       ];
     }
-    if (category) {
+    if (category && category !== 'Inventory Purchases') {
       where.category = category;
     }
 
-    const [items, total] = await Promise.all([
-      this.prisma.expense.findMany({
+    const [manualExpenses, purchases] = await Promise.all([
+      category === 'Inventory Purchases' ? [] : this.prisma.expense.findMany({
         where,
-        skip,
-        take: limit,
         orderBy: { date: 'desc' },
       }),
-      this.prisma.expense.count({ where }),
+      category && category !== 'Inventory Purchases' ? [] : this.prisma.purchase.findMany({
+        where: search
+          ? { companyId, poNumber: { contains: search, mode: 'insensitive' } }
+          : { companyId },
+        orderBy: { purchaseDate: 'desc' },
+      }),
     ]);
 
-    return buildPaginatedResponse(items, total, page, limit);
+    const mappedPurchases = purchases.map((pur) => ({
+      id: `purchase-${pur.id}`,
+      referenceNo: pur.poNumber,
+      category: 'Inventory Purchases',
+      amount: pur.totalAmount,
+      description: `Supplier Stock Purchase (${pur.status || 'RECEIVED'})`,
+      date: pur.purchaseDate || pur.createdAt,
+      createdAt: pur.createdAt,
+      companyId: pur.companyId,
+      isPurchaseRecord: true,
+    }));
+
+    const combined = [...manualExpenses, ...mappedPurchases].sort(
+      (a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime()
+    );
+
+    const total = combined.length;
+    const paginatedItems = combined.slice((page - 1) * limit, page * limit);
+
+    return buildPaginatedResponse(paginatedItems, total, page, limit);
   }
 
   async findOne(companyId: number, id: number) {
