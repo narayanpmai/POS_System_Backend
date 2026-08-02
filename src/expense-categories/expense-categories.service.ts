@@ -24,7 +24,29 @@ export class ExpenseCategoriesService {
     });
   }
 
+  private async ensureDefaultCategories(companyId: number) {
+    const count = await this.prisma.expenseCategory.count({ where: { companyId } });
+    if (count === 0) {
+      const defaults = [
+        { name: 'Inventory Purchases', description: 'Supplier stock purchases and inventory acquisitions' },
+        { name: 'OPERATIONAL', description: 'General day-to-day store operations and utilities' },
+        { name: 'RENT & UTILITIES', description: 'Store rent, electricity, water, and internet bills' },
+        { name: 'STAFF & SALARY', description: 'Employee salaries, wages, and staff welfare' },
+        { name: 'CAPITAL', description: 'Capital equipment, machinery, and store fixtures' },
+        { name: 'UNEXPECTED', description: 'Emergency repairs, maintenance, and unforeseen expenses' },
+      ];
+
+      for (const def of defaults) {
+        await this.prisma.expenseCategory.create({
+          data: { ...def, companyId }
+        });
+      }
+    }
+  }
+
   async findAll(companyId: number, search?: string, pageQuery = 1, limitQuery = 10) {
+    await this.ensureDefaultCategories(companyId);
+
     const page = Math.max(1, Number(pageQuery) || 1);
     const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
     const skip = (page - 1) * limit;

@@ -24,7 +24,28 @@ export class IncomeCategoriesService {
     });
   }
 
+  private async ensureDefaultCategories(companyId: number) {
+    const count = await this.prisma.incomeCategory.count({ where: { companyId } });
+    if (count === 0) {
+      const defaults = [
+        { name: 'POS Sales Revenue', description: 'Revenue generated from POS counter customer sales' },
+        { name: 'Export Fee & Services', description: 'Fees and service charges collected for export or delivery' },
+        { name: 'Investments & Capital', description: 'Owner capital infusions and business investments' },
+        { name: 'Rental & Lease Income', description: 'Income from renting out store equipment or space' },
+        { name: 'Other Miscellaneous Income', description: 'Other general store incomes' },
+      ];
+
+      for (const def of defaults) {
+        await this.prisma.incomeCategory.create({
+          data: { ...def, companyId }
+        });
+      }
+    }
+  }
+
   async findAll(companyId: number, search?: string, pageQuery = 1, limitQuery = 10) {
+    await this.ensureDefaultCategories(companyId);
+
     const page = Math.max(1, Number(pageQuery) || 1);
     const limit = Math.min(500, Math.max(1, Number(limitQuery) || 10));
     const skip = (page - 1) * limit;
