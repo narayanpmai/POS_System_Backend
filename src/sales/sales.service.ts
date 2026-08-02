@@ -242,7 +242,10 @@ export class SalesService {
     const limit = Math.min(500, Math.max(1, Number(query.limit) || 10));
     const skip = (page - 1) * limit;
 
-    const where: any = { companyId };
+    const where: any = {};
+    if (companyId > 0) {
+      where.companyId = companyId;
+    }
 
     if (query.cashierId) {
       where.cashierId = query.cashierId;
@@ -267,7 +270,7 @@ export class SalesService {
         end.setHours(23, 59, 59, 999); // include entire end day
         where.createdAt.lte = end;
       }
-    } else {
+    } else if (companyId > 0) {
       const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
       if (activeFy) {
         where.createdAt = {

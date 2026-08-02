@@ -15,26 +15,27 @@ export class ReportsService {
 
     const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+    const companyWhere = companyId > 0 ? { companyId } : {};
+    const activeFy = companyId > 0 ? await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } }) : null;
     const globalDateFilter = activeFy ? { gte: activeFy.startDate, lte: activeFy.endDate } : undefined;
 
     // 1. Sales summaries (Daily, Weekly, Monthly, Total)
     const [dailySales, weeklySales, monthlySales, totalSalesSum] = await Promise.all([
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: today }, companyId },
+        where: { createdAt: { gte: today }, ...companyWhere },
         _sum: { totalAmount: true },
         _count: { id: true },
       }),
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: startOfWeek }, companyId },
+        where: { createdAt: { gte: startOfWeek }, ...companyWhere },
         _sum: { totalAmount: true },
       }),
       this.prisma.sale.aggregate({
-        where: { createdAt: { gte: startOfMonth }, companyId },
+        where: { createdAt: { gte: startOfMonth }, ...companyWhere },
         _sum: { totalAmount: true },
       }),
       this.prisma.sale.aggregate({
-        where: globalDateFilter ? { createdAt: globalDateFilter, companyId } : { companyId },
+        where: globalDateFilter ? { createdAt: globalDateFilter, ...companyWhere } : companyWhere,
         _sum: { totalAmount: true, taxAmount: true, discountAmount: true },
         _count: { id: true },
       }),
@@ -42,7 +43,7 @@ export class ReportsService {
 
     // 2. Total Costs to calculate Net Profits
     const totalSaleItemsCost = await this.prisma.saleItem.findMany({
-      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, companyId } } : { sale: { companyId } },
+      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, ...companyWhere } } : { sale: companyWhere },
       select: {
         quantity: true,
         cost: true,
@@ -60,7 +61,7 @@ export class ReportsService {
 
     // 3. Low stock inventory alerts count
     const allProducts = await this.prisma.product.findMany({
-      where: { companyId },
+      where: companyWhere,
       include: { category: true },
     });
     
@@ -69,7 +70,7 @@ export class ReportsService {
 
     // 4. Top Selling Products
     const saleItems = await this.prisma.saleItem.findMany({
-      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, companyId } } : { sale: { companyId } },
+      where: globalDateFilter ? { sale: { createdAt: globalDateFilter, ...companyWhere } } : { sale: companyWhere },
       include: { product: true },
     });
 
@@ -89,7 +90,7 @@ export class ReportsService {
 
     // 5. Recent Sales Transactions
     const recentTransactions = await this.prisma.sale.findMany({
-      where: globalDateFilter ? { createdAt: globalDateFilter, companyId } : { companyId },
+      where: globalDateFilter ? { createdAt: globalDateFilter, ...companyWhere } : companyWhere,
       include: {
         customer: true,
         cashier: { select: { name: true } },
@@ -119,9 +120,10 @@ export class ReportsService {
   async getSalesAnalytics(companyId: number, startDateStr?: string, endDateStr?: string) {
     let end = endDateStr ? new Date(endDateStr) : new Date();
     let start = startDateStr ? new Date(startDateStr) : new Date();
-    
+    const companyWhere = companyId > 0 ? { companyId } : {};
+
     if (!startDateStr && !endDateStr) {
-      const activeFy = await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } });
+      const activeFy = companyId > 0 ? await this.prisma.fiscalYear.findFirst({ where: { isActive: true, companyId } }) : null;
       if (activeFy) {
         const today = new Date();
         if (today > activeFy.endDate) {
@@ -133,9 +135,9 @@ export class ReportsService {
           end = today;
         }
         start = new Date(end);
-        start.setDate(start.getDate() - 7);
+        start.setDate(start.getDate() - 30);
       } else {
-        start.setDate(start.getDate() - 7);
+        start.setDate(start.getDate() - 30);
       }
     }
     
@@ -144,7 +146,7 @@ export class ReportsService {
 
     const sales = await this.prisma.sale.findMany({
       where: {
-        companyId,
+        ...companyWhere,
         createdAt: {
           gte: start,
           lte: end,

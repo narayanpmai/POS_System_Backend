@@ -24,10 +24,12 @@ export class TenantMiddleware implements NestMiddleware {
       }
     }
 
-    // 2. Extract JWT payload if authorization header is present
+    // 2. Extract JWT payload if cookie or authorization header is present
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
+    const cookieToken = (req as any).cookies?.access_token;
+    const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.split(' ')[1] : cookieToken;
+
+    if (token) {
       try {
         const payloadStr = Buffer.from(token.split('.')[1], 'base64').toString('utf8');
         const payload = JSON.parse(payloadStr);
