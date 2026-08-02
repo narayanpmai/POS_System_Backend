@@ -21,12 +21,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
       
       // Skip global entities that do not belong to a specific company
-      if (!companyId || ['Role', 'Company'].includes(params.model as string)) {
+      if (!companyId || ['Role', 'Company', 'UserSession'].includes(params.model as string)) {
         return next(params);
       }
 
-      // Bypass tenant filter for User lookups by email (login / auth flow)
-      if (params.model === 'User' && params.args?.where?.email) {
+      // Bypass tenant filter for User lookups by id or email (auth flow, JWT validation)
+      if (params.model === 'User' && (params.args?.where?.id !== undefined || params.args?.where?.email)) {
         return next(params);
       }
 
