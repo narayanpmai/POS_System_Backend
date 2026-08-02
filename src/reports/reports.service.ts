@@ -412,12 +412,13 @@ export class ReportsService {
 
     // Calculate aggregated metrics
     const totalSalesAmount = sales.reduce((acc, curr) => acc + curr.totalAmount, 0);
-    const totalExpensesAmount = expenses.reduce((acc, curr) => acc + curr.amount, 0);
+    const totalOperatingExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
     const totalInvestmentsAmount = incomes.filter(i => i.category.toLowerCase() === 'investment' || i.category.toLowerCase() === 'capital').reduce((acc, curr) => acc + curr.amount, 0);
     const totalOtherIncomesAmount = incomes.filter(i => i.category.toLowerCase() !== 'investment' && i.category.toLowerCase() !== 'capital').reduce((acc, curr) => acc + curr.amount, 0);
     const totalIncomesAmount = incomes.reduce((acc, curr) => acc + curr.amount, 0);
     const totalPurchasesAmount = purchases.reduce((acc, curr) => acc + curr.totalAmount, 0);
-    const netProfit = totalSalesAmount + totalIncomesAmount - totalExpensesAmount - totalPurchasesAmount;
+    const combinedExpensesAmount = totalOperatingExpenses + totalPurchasesAmount;
+    const netProfit = totalSalesAmount + totalIncomesAmount - combinedExpensesAmount;
 
     // Create a daily map to populate daily charts
     const dailyDataMap: { [key: string]: { date: string; income: number; outflow: number; investment: number } } = {};
@@ -480,8 +481,9 @@ export class ReportsService {
       totalIncomes: Number(totalOtherIncomesAmount.toFixed(2)),
       totalInvestments: Number(totalInvestmentsAmount.toFixed(2)),
       incomesCount: incomes.length,
-      totalExpenses: Number(totalExpensesAmount.toFixed(2)),
-      expensesCount: expenses.length,
+      totalExpenses: Number(combinedExpensesAmount.toFixed(2)),
+      operatingExpenses: Number(totalOperatingExpenses.toFixed(2)),
+      expensesCount: expenses.length + purchases.length,
       totalPurchases: Number(totalPurchasesAmount.toFixed(2)),
       purchasesCount: purchases.length,
       netProfit: Number(netProfit.toFixed(2)),
