@@ -179,7 +179,11 @@ export class AuthService {
   }
 
   async refreshToken(refreshToken: string) {
-    const session = await this.prisma.userSession.findUnique({
+    if (!refreshToken || typeof refreshToken !== 'string' || !refreshToken.trim()) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    const session = await this.prisma.userSession.findFirst({
       where: { refreshToken },
       include: { user: { include: { role: true } } },
     });
