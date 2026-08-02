@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto, RegisterDto, ForgotPasswordDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -9,11 +9,38 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private setAuthCookies(res: any, accessToken: string, refreshToken?: string) {
+    if (accessToken) {
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/',
+      });
+    }
+
+    if (refreshToken) {
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      });
+    }
+  }
+
+  private clearAuthCookies(res: any) {
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User Login with HttpOnly Cookie & Session Tracking' })
-  @ApiResponse({ status: 200, description: 'Successful login, returns bearer JWT token' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 200, description: 'Successful login, sets HttpOnly cookies' })
   async login(
     @Body() dto: LoginDto,
     @Req() req: any,
@@ -23,28 +50,21 @@ export class AuthController {
     const userAgent = req.headers['user-agent'];
     const result = await this.authService.login(dto, clientIp, userAgent);
 
-    if (result.refresh_token) {
-      res.cookie('refresh_token', result.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth',
-      });
-    }
-
+    this.setAuthCookies(res, result.access_token, result.refresh_token);
     return result;
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'User Registration' })
-  @ApiResponse({ status: 201, description: 'User successfully created' })
   async register(
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: any,
   ) {
     const result = await this.authService.register(dto);
+    if (result.access_token) {
+      this.setAuthCookies(res, result.access_token);
+    }
     return result;
   }
 
@@ -59,23 +79,24 @@ export class AuthController {
     const token = req.cookies?.refresh_token || bodyToken;
     const result = await this.authService.refreshToken(token);
 
-    if (result.refresh_token) {
-      res.cookie('refresh_token', result.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth',
-      });
-    }
-
+    this.setAuthCookies(res, result.access_token, result.refresh_token);
     return result;
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get currently authenticated user profile' })
+  async getProfile(@Req() req: any) {
+    return {
+      user: req.user,
+    };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'User Logout & HttpOnly Cookie Clear' })
   async logout(
     @Req() req: any,
@@ -83,7 +104,7 @@ export class AuthController {
     @Body('refresh_token') bodyToken?: string,
   ) {
     const token = req.cookies?.refresh_token || bodyToken;
-    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
+    this.clearAuthCookies(res);
     return this.authService.logout(req.user.id, token);
   }
 
