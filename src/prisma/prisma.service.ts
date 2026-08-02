@@ -7,17 +7,7 @@ export const tenantContext = new AsyncLocalStorage<{ companyId?: number; isSuper
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
-    try {
-      await this.$connect();
-    } catch (err: any) {
-      if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes(':5555')) {
-        console.warn('⚠️ Connection to PostgreSQL on port 5555 failed. Retrying on native VPS port 5432...');
-        process.env.DATABASE_URL = process.env.DATABASE_URL.replace(':5555', ':5432');
-        await this.$connect();
-      } else {
-        throw err;
-      }
-    }
+    await this.$connect();
     
     // Add middleware for multitenancy to intercept all queries and enforce company isolation
     this.$use(async (params, next) => {
