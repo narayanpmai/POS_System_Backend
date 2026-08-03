@@ -21,6 +21,11 @@
 
 ## 📌 Outstanding / Next Tasks
 
+### 👤 User-Wise Sales Tracking & Cashier Audit Log
+- [ ] **Backend User Sales Audit Query**: Update `SalesService.findAllSales` to support filtering by `cashierId` (User ID) so admins can query sales made by a specific user on any given date range.
+- [ ] **User-Wise Sales Analytics**: Add `/reports/user-sales-summary` endpoint to return date-wise breakdown of total transactions and revenue grouped per cashier.
+
+### ⚙️ System & Infrastructure
 - [ ] **Production Health Monitoring**: Monitor PM2 logs (`pm2 logs 17`) on Hostinger VPS during active cashier shifts.
 - [ ] **Automated Backup Checks**: Verify PostgreSQL automated daily database backups.
 - [ ] **Optional Feature Additions**: Custom PDF report exports and bulk product CSV imports.
