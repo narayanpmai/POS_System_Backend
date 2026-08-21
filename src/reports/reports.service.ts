@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
 @Injectable()
 export class ReportsService {
@@ -529,7 +530,7 @@ export class ReportsService {
         grandTotalValue += totalValue;
         closingStockData.push({
           ...prod,
-          closingQuantity: closingQty,
+          closingQuantity: Number(closingQty.toFixed(2)),
           totalValue: Number(totalValue.toFixed(2))
         });
       }
@@ -607,4 +608,119 @@ export class ReportsService {
       closingBalance: Number(closingBalance.toFixed(2))
     };
   }
+
+  async getStockMovements(
+    companyId: number,
+    query: {
+      startDate?: string;
+      endDate?: string;
+      type?: string;
+      productId?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+  ) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const where: any = { companyId };
+
+    if (query.type && (query.type === 'STOCK_IN' || query.type === 'STOCK_OUT')) {
+      where.type = query.type;
+    }
+
+    if (query.productId) {
+      where.productId = Number(query.productId);
+    }
+
+    if (query.startDate || query.endDate) {
+      where.createdAt = {};
+      if (query.startDate) {
+        const start = new Date(query.startDate);
+        start.setHours(0, 0, 0, 0);
+        where.createdAt.gte = start;
+      }
+      if (query.endDate) {
+        const end = new Date(query.endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    if (query.search) {
+      where.OR = [
+        { reason: { contains: query.search, mode: 'insensitive' } },
+        { product: { name: { contains: query.search, mode: 'insensitive' } } },
+        { product: { SKU: { contains: query.search, mode: 'insensitive' } } },
+        { product: { barcode: { contains: query.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [items, total, inflowAgg, outflowAgg] = await Promise.all([
+      this.prisma.inventoryTransaction.findMany({
+        where,
+        include: {
+          product: {
+            select: {
+              id: true,
+              name: true,
+              SKU: true,
+              barcode: true,
+              unit: true,
+              price: true,
+              cost: true,
+              stock: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          supplier: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.inventoryTransaction.count({ where }),
+      this.prisma.inventoryTransaction.aggregate({
+        where: { ...where, type: 'STOCK_IN' },
+        _sum: { quantity: true },
+        _count: { id: true },
+      }),
+      this.prisma.inventoryTransaction.aggregate({
+        where: { ...where, type: 'STOCK_OUT' },
+        _sum: { quantity: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    const totalInflow = inflowAgg._sum.quantity || 0;
+    const totalOutflow = outflowAgg._sum.quantity || 0;
+    const netMovement = totalInflow - totalOutflow;
+
+    const paginated = buildPaginatedResponse(items, total, page, limit);
+    return {
+      ...paginated,
+      summary: {
+        totalInflow: Number(totalInflow.toFixed(2)),
+        totalOutflow: Number(totalOutflow.toFixed(2)),
+        netMovement: Number(netMovement.toFixed(2)),
+        inflowCount: inflowAgg._count.id || 0,
+        outflowCount: outflowAgg._count.id || 0,
+        totalRecords: total,
+      },
+    };
+  }
 }
+

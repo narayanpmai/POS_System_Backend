@@ -231,6 +231,19 @@ export class PurchasesService {
       where.OR = [
         { poNumber: { contains: query.search, mode: 'insensitive' } },
         { supplier: { name: { contains: query.search, mode: 'insensitive' } } },
+        {
+          items: {
+            some: {
+              product: {
+                OR: [
+                  { name: { contains: query.search, mode: 'insensitive' } },
+                  { SKU: { contains: query.search, mode: 'insensitive' } },
+                  { barcode: { contains: query.search, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        },
       ];
     }
 

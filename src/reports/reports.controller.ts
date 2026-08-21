@@ -77,4 +77,36 @@ export class ReportsController {
   getClosingBalance(@Req() req: any) {
     return this.reportsService.getClosingBalance(req.user.companyId);
   }
+
+  @Get('stock-movements')
+  @Roles('Admin', 'Super Admin')
+  @ApiOperation({ summary: 'Retrieve full inventory stock movement audit trail ledger' })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
+  @ApiQuery({ name: 'type', required: false, enum: ['STOCK_IN', 'STOCK_OUT'] })
+  @ApiQuery({ name: 'productId', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  getStockMovements(
+    @Req() req: any,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('type') type?: string,
+    @Query('productId') productId?: number,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.reportsService.getStockMovements(req.user.companyId, {
+      startDate,
+      endDate,
+      type,
+      productId: productId ? Number(productId) : undefined,
+      search,
+      page,
+      limit,
+    });
+  }
 }
+

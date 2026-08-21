@@ -263,10 +263,10 @@ export class ProductsService {
 
   async findAllProducts(
     companyId: number,
-    query: { page?: number; limit?: number; search?: string; categoryId?: number; lowStockOnly?: boolean },
+    query: { page?: number; limit?: number; search?: string; categoryId?: number; lowStockOnly?: boolean; inStockOnly?: boolean },
   ) {
     const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.min(500, Math.max(1, Number(query.limit) || 20));
+    const limit = Math.min(2000, Math.max(1, Number(query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const where: any = { companyId };
@@ -298,8 +298,12 @@ export class ProductsService {
       where.categoryId = { in: categoryIds };
     }
 
-    if (query.lowStockOnly) {
+    if (query.lowStockOnly && query.inStockOnly) {
+      where.stock = { gt: 0, lte: this.prisma.product.fields.minStockAlert };
+    } else if (query.lowStockOnly) {
       where.stock = { lte: this.prisma.product.fields.minStockAlert };
+    } else if (query.inStockOnly) {
+      where.stock = { gt: 0 };
     }
 
     const [items, total, globalConversions] = await Promise.all([

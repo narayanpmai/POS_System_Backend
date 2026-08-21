@@ -1,6 +1,7 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { TenantMiddleware } from './auth/tenant.middleware';
 import { RequestIdMiddleware } from './common/middlewares/request-id.middleware';
 import { AllowedHostMiddleware } from './common/middlewares/allowed-host.middleware';
@@ -41,6 +42,13 @@ import { ShiftsModule } from './shifts/shifts.module';
       isGlobal: true,
       envFilePath: ['.env.development', '.env'],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 150, // 150 requests per minute
+      },
+    ]),
     PrismaModule,
     AuthModule,
     ProductsModule,
@@ -69,6 +77,10 @@ import { ShiftsModule } from './shifts/shifts.module';
   ],
   controllers: [],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: SanitizeInterceptor,

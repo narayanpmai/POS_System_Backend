@@ -180,15 +180,26 @@ export class ProductsController {
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: Number })
   @ApiQuery({ name: 'lowStockOnly', required: false, type: Boolean })
+  @ApiQuery({ name: 'inStockOnly', required: false, type: Boolean })
   findAllProducts(
     @Req() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
     @Query('categoryId') categoryId?: number,
-    @Query('lowStockOnly') lowStockOnly?: boolean,
+    @Query('lowStockOnly') lowStockOnly?: boolean | string,
+    @Query('inStockOnly') inStockOnly?: boolean | string,
   ) {
-    return this.productsService.findAllProducts(req.user.companyId, { page, limit, search, categoryId, lowStockOnly });
+    const isLowStock = lowStockOnly === true || lowStockOnly === 'true';
+    const isInStock = inStockOnly === true || inStockOnly === 'true';
+    return this.productsService.findAllProducts(req.user.companyId, {
+      page,
+      limit,
+      search,
+      categoryId,
+      lowStockOnly: isLowStock,
+      inStockOnly: isInStock,
+    });
   }
 
   @Get('barcode/:barcode')
