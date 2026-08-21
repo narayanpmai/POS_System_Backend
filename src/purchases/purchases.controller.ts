@@ -28,16 +28,20 @@ export class PurchasesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all purchase orders with pagination & search' })
+  @ApiOperation({ summary: 'List all purchase orders with pagination, search, and date filters' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
   findAll(
     @Req() req: any,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
-    return this.purchasesService.findAll(req.user.companyId, { page, limit, search });
+    return this.purchasesService.findAll(req.user.companyId, { page, limit, search, startDate, endDate });
   }
 }

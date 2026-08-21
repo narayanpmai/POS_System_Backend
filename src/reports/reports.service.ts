@@ -635,26 +635,30 @@ export class ReportsService {
       where.productId = Number(query.productId);
     }
 
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) {
-        const start = new Date(query.startDate);
+    if (query.startDate && query.startDate.trim() !== '') {
+      const start = new Date(query.startDate);
+      if (!isNaN(start.getTime())) {
         start.setHours(0, 0, 0, 0);
-        where.createdAt.gte = start;
+        where.createdAt = { ...(where.createdAt || {}), gte: start };
       }
-      if (query.endDate) {
-        const end = new Date(query.endDate);
+    }
+    if (query.endDate && query.endDate.trim() !== '') {
+      const end = new Date(query.endDate);
+      if (!isNaN(end.getTime())) {
         end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
+        where.createdAt = { ...(where.createdAt || {}), lte: end };
       }
     }
 
-    if (query.search) {
+    if (query.search && query.search.trim() !== '') {
+      const term = query.search.trim();
       where.OR = [
-        { reason: { contains: query.search, mode: 'insensitive' } },
-        { product: { name: { contains: query.search, mode: 'insensitive' } } },
-        { product: { SKU: { contains: query.search, mode: 'insensitive' } } },
-        { product: { barcode: { contains: query.search, mode: 'insensitive' } } },
+        { reason: { contains: term, mode: 'insensitive' } },
+        { product: { name: { contains: term, mode: 'insensitive' } } },
+        { product: { SKU: { contains: term, mode: 'insensitive' } } },
+        { product: { barcode: { contains: term, mode: 'insensitive' } } },
+        { user: { name: { contains: term, mode: 'insensitive' } } },
+        { supplier: { name: { contains: term, mode: 'insensitive' } } },
       ];
     }
 
