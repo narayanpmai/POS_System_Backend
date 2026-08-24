@@ -298,6 +298,7 @@ export class SalesService {
           customer: true,
           cashier: { select: { name: true } },
           items: { include: { product: true } },
+          saleReturns: { include: { items: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -307,7 +308,31 @@ export class SalesService {
       this.prisma.sale.aggregate({ where, _sum: { totalAmount: true } }),
     ]);
 
-    const paginated = buildPaginatedResponse(items, total, page, limit);
+    const enrichedItems = items.map((sale) => {
+      const totalRefunded = (sale.saleReturns || []).reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+      const totalSoldQty = (sale.items || []).reduce((sum, item) => sum + item.quantity, 0);
+      const totalReturnedQty = (sale.saleReturns || []).reduce(
+        (sum, ret) => sum + (ret.items || []).reduce((iSum, rItem) => iSum + rItem.quantity, 0),
+        0,
+      );
+
+      let returnStatus: 'NONE' | 'PARTIAL' | 'FULL' = 'NONE';
+      if (totalRefunded >= sale.totalAmount || (totalSoldQty > 0 && totalReturnedQty >= totalSoldQty)) {
+        returnStatus = 'FULL';
+      } else if (totalRefunded > 0 || totalReturnedQty > 0) {
+        returnStatus = 'PARTIAL';
+      }
+
+      return {
+        ...sale,
+        totalRefunded,
+        netAmount: Math.max(0, Number((sale.totalAmount - totalRefunded).toFixed(2))),
+        returnStatus,
+        status: returnStatus === 'FULL' ? 'RETURNED' : returnStatus === 'PARTIAL' ? 'PARTIALLY_RETURNED' : (sale.paymentStatus || 'PAID'),
+      };
+    });
+
+    const paginated = buildPaginatedResponse(enrichedItems, total, page, limit);
     return {
       ...paginated,
       totalSalesAmount: aggregate._sum.totalAmount || 0,
@@ -323,10 +348,51 @@ export class SalesService {
         items: {
           include: { product: true },
         },
+        saleReturns: {
+          include: { items: true },
+        },
       },
     });
     if (!sale) throw new NotFoundException('Transaction not found');
-    return sale;
+
+    const totalRefunded = (sale.saleReturns || []).reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+    const totalSoldQty = (sale.items || []).reduce((sum, item) => sum + item.quantity, 0);
+    const totalReturnedQty = (sale.saleReturns || []).reduce(
+      (sum, ret) => sum + (ret.items || []).reduce((iSum, rItem) => iSum + rItem.quantity, 0),
+      0,
+    );
+
+    let returnStatus: 'NONE' | 'PARTIAL' | 'FULL' = 'NONE';
+    if (totalRefunded >= sale.totalAmount || (totalSoldQty > 0 && totalReturnedQty >= totalSoldQty)) {
+      returnStatus = 'FULL';
+    } else if (totalRefunded > 0 || totalReturnedQty > 0) {
+      returnStatus = 'PARTIAL';
+    }
+
+    const enrichedItems = (sale.items || []).map((item) => {
+      let returnedQty = 0;
+      for (const ret of sale.saleReturns || []) {
+        for (const retItem of ret.items || []) {
+          if (retItem.saleItemId === item.id) {
+            returnedQty += retItem.quantity;
+          }
+        }
+      }
+      return {
+        ...item,
+        returnedQuantity: returnedQty,
+        remainingQuantity: Math.max(0, item.quantity - returnedQty),
+      };
+    });
+
+    return {
+      ...sale,
+      items: enrichedItems,
+      totalRefunded,
+      netAmount: Math.max(0, Number((sale.totalAmount - totalRefunded).toFixed(2))),
+      returnStatus,
+      status: returnStatus === 'FULL' ? 'RETURNED' : returnStatus === 'PARTIAL' ? 'PARTIALLY_RETURNED' : (sale.paymentStatus || 'PAID'),
+    };
   }
 
   async remove(companyId: number, id: number, adminId: number) {

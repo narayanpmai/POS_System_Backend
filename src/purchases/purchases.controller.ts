@@ -44,4 +44,10 @@ export class PurchasesController {
   ) {
     return this.purchasesService.findAll(req.user.companyId, { page, limit, search, startDate, endDate });
   }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get purchase order details by ID' })
+  findOne(@Param('id') id: string, @Req() req: any) {
+    return this.purchasesService.findOne(req.user.companyId, +id);
+  }
 }

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildPaginatedResponse } from '../common/interfaces/api-response.interface';
 
@@ -270,7 +270,8 @@ export class PurchasesService {
         include: {
           supplier: true,
           user: true,
-          items: { include: { product: true } }
+          items: { include: { product: true } },
+          purchaseReturns: { include: { items: true } },
         },
         orderBy: { purchaseDate: 'desc' },
         skip,
@@ -279,6 +280,82 @@ export class PurchasesService {
       this.prisma.purchase.count({ where }),
     ]);
 
-    return buildPaginatedResponse(items, total, page, limit);
+    const enrichedItems = items.map((pur) => {
+      const totalRefunded = (pur.purchaseReturns || []).reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+      const totalPurchasedQty = (pur.items || []).reduce((sum, item) => sum + item.quantity, 0);
+      const totalReturnedQty = (pur.purchaseReturns || []).reduce(
+        (sum, ret) => sum + (ret.items || []).reduce((iSum, rItem) => iSum + rItem.quantity, 0),
+        0,
+      );
+
+      let returnStatus: 'NONE' | 'PARTIAL' | 'FULL' = 'NONE';
+      if (totalRefunded >= pur.totalAmount || (totalPurchasedQty > 0 && totalReturnedQty >= totalPurchasedQty)) {
+        returnStatus = 'FULL';
+      } else if (totalRefunded > 0 || totalReturnedQty > 0) {
+        returnStatus = 'PARTIAL';
+      }
+
+      return {
+        ...pur,
+        totalRefunded,
+        netAmount: Math.max(0, Number((pur.totalAmount - totalRefunded).toFixed(2))),
+        returnStatus,
+        status: returnStatus === 'FULL' ? 'RETURNED' : returnStatus === 'PARTIAL' ? 'PARTIALLY_RETURNED' : pur.status,
+      };
+    });
+
+    return buildPaginatedResponse(enrichedItems, total, page, limit);
+  }
+
+  async findOne(companyId: number, id: number) {
+    const purchase = await this.prisma.purchase.findUnique({
+      where: { id, companyId },
+      include: {
+        supplier: true,
+        user: true,
+        items: { include: { product: true } },
+        purchaseReturns: { include: { items: true } },
+      },
+    });
+    if (!purchase) throw new NotFoundException('Purchase order not found');
+
+    const totalRefunded = (purchase.purchaseReturns || []).reduce((sum, ret) => sum + (ret.totalAmount || 0), 0);
+    const totalPurchasedQty = (purchase.items || []).reduce((sum, item) => sum + item.quantity, 0);
+    const totalReturnedQty = (purchase.purchaseReturns || []).reduce(
+      (sum, ret) => sum + (ret.items || []).reduce((iSum, rItem) => iSum + rItem.quantity, 0),
+      0,
+    );
+
+    let returnStatus: 'NONE' | 'PARTIAL' | 'FULL' = 'NONE';
+    if (totalRefunded >= purchase.totalAmount || (totalPurchasedQty > 0 && totalReturnedQty >= totalPurchasedQty)) {
+      returnStatus = 'FULL';
+    } else if (totalRefunded > 0 || totalReturnedQty > 0) {
+      returnStatus = 'PARTIAL';
+    }
+
+    const enrichedItems = (purchase.items || []).map((item) => {
+      let returnedQty = 0;
+      for (const ret of purchase.purchaseReturns || []) {
+        for (const retItem of ret.items || []) {
+          if (retItem.purchaseItemId === item.id) {
+            returnedQty += retItem.quantity;
+          }
+        }
+      }
+      return {
+        ...item,
+        returnedQuantity: returnedQty,
+        remainingQuantity: Math.max(0, item.quantity - returnedQty),
+      };
+    });
+
+    return {
+      ...purchase,
+      items: enrichedItems,
+      totalRefunded,
+      netAmount: Math.max(0, Number((purchase.totalAmount - totalRefunded).toFixed(2))),
+      returnStatus,
+      status: returnStatus === 'FULL' ? 'RETURNED' : returnStatus === 'PARTIAL' ? 'PARTIALLY_RETURNED' : purchase.status,
+    };
   }
 }

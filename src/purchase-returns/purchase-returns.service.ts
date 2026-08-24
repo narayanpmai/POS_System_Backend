@@ -24,20 +24,28 @@ export class PurchaseReturnsService {
   }
 
   async create(companyId: number, userId: number, dto: any) {
-    const { purchaseId, reason, items } = dto;
+    const { purchaseId, poNumber, reason, items } = dto;
     if (!items || items.length === 0) {
       throw new BadRequestException('No items provided for return');
     }
 
     await this.ensureActiveFiscalYear(companyId);
 
-    const purchase = await this.prisma.purchase.findUnique({
-      where: { id: purchaseId, companyId },
-      include: { items: true },
-    });
+    let purchase = null;
+    if (purchaseId && !isNaN(Number(purchaseId))) {
+      purchase = await this.prisma.purchase.findUnique({
+        where: { id: Number(purchaseId), companyId },
+        include: { items: { include: { product: true } } },
+      });
+    } else if (poNumber) {
+      purchase = await this.prisma.purchase.findFirst({
+        where: { poNumber: String(poNumber).trim(), companyId },
+        include: { items: { include: { product: true } } },
+      });
+    }
 
     if (!purchase) {
-      throw new NotFoundException('Purchase not found');
+      throw new NotFoundException('Purchase order not found. Please verify the PO Number.');
     }
 
     const count = await this.prisma.purchaseReturn.count({ where: { companyId } });
@@ -52,8 +60,33 @@ export class PurchaseReturnsService {
         if (!purchaseItem) {
           throw new BadRequestException(`PurchaseItem ${returnItem.purchaseItemId} not found in this purchase`);
         }
-        if (returnItem.quantity > purchaseItem.quantity || returnItem.quantity <= 0) {
-          throw new BadRequestException(`Invalid return quantity for product ID ${purchaseItem.productId}`);
+
+        // Check already returned quantities for this purchase item
+        const previousReturns = await tx.purchaseReturnItem.findMany({
+          where: { purchaseItemId: purchaseItem.id },
+          select: { quantity: true },
+        });
+        const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
+        const remainingReturnableQty = purchaseItem.quantity - alreadyReturnedQty;
+
+        if (returnItem.quantity <= 0) {
+          throw new BadRequestException('Return quantity must be at least 1');
+        }
+        if (returnItem.quantity > remainingReturnableQty) {
+          throw new BadRequestException(
+            `Cannot return ${returnItem.quantity} units for product ID ${purchaseItem.productId}. Only ${remainingReturnableQty} unit(s) eligible for return (Purchased: ${purchaseItem.quantity}, Already returned: ${alreadyReturnedQty})`,
+          );
+        }
+
+        // Check current product stock
+        const currentProduct = await tx.product.findUnique({
+          where: { id: purchaseItem.productId, companyId },
+          select: { stock: true, name: true },
+        });
+        if (currentProduct && currentProduct.stock < returnItem.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock to return "${currentProduct.name}". Current stock: ${currentProduct.stock}, requested return: ${returnItem.quantity}`,
+          );
         }
 
         const refundAmount = purchaseItem.costPrice * returnItem.quantity;
