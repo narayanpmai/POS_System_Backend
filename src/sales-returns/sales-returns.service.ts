@@ -6,7 +6,7 @@ export class SalesReturnsService {
   constructor(private prisma: PrismaService) {}
 
   async create(companyId: number, userId: number, dto: any) {
-    const { saleId, reason, items } = dto;
+    const { saleId, invoiceNo, reason, items } = dto;
     if (!items || items.length === 0) {
       throw new BadRequestException('No items provided for return');
     }
@@ -20,13 +20,21 @@ export class SalesReturnsService {
       throw new BadRequestException(`Transaction date must fall within the active fiscal year (${activeFy.name})`);
     }
 
-    const sale = await this.prisma.sale.findUnique({
-      where: { id: saleId, companyId },
-      include: { items: true },
-    });
+    let sale = null;
+    if (saleId && !isNaN(Number(saleId))) {
+      sale = await this.prisma.sale.findUnique({
+        where: { id: Number(saleId), companyId },
+        include: { items: true },
+      });
+    } else if (invoiceNo) {
+      sale = await this.prisma.sale.findFirst({
+        where: { invoiceNo: String(invoiceNo).trim(), companyId },
+        include: { items: true },
+      });
+    }
 
     if (!sale) {
-      throw new NotFoundException('Sale not found');
+      throw new NotFoundException('Sale transaction not found. Please verify the Invoice Number.');
     }
 
     const count = await this.prisma.saleReturn.count({ where: { companyId } });
