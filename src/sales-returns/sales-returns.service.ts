@@ -51,8 +51,22 @@ export class SalesReturnsService {
         if (!saleItem) {
           throw new BadRequestException(`SaleItem ${returnItem.saleItemId} not found in this sale`);
         }
-        if (returnItem.quantity > saleItem.quantity || returnItem.quantity <= 0) {
-          throw new BadRequestException(`Invalid return quantity for product ID ${saleItem.productId}`);
+
+        // Check if any quantity was previously returned for this item
+        const previousReturns = await tx.saleReturnItem.findMany({
+          where: { saleItemId: saleItem.id },
+          select: { quantity: true },
+        });
+        const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
+        const remainingReturnableQty = saleItem.quantity - alreadyReturnedQty;
+
+        if (returnItem.quantity <= 0) {
+          throw new BadRequestException(`Return quantity must be at least 1`);
+        }
+        if (returnItem.quantity > remainingReturnableQty) {
+          throw new BadRequestException(
+            `Cannot return ${returnItem.quantity} items for product ID ${saleItem.productId}. Only ${remainingReturnableQty} item(s) eligible for return (Purchased: ${saleItem.quantity}, Already returned: ${alreadyReturnedQty})`,
+          );
         }
 
         const refundSubtotal = saleItem.price * returnItem.quantity;
