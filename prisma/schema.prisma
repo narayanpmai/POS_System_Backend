@@ -460,8 +460,8 @@ model PurchaseReturn {
   returnNo    String               @unique
   purchaseId  Int
   purchase    Purchase             @relation(fields: [purchaseId], references: [id])
-  supplierId  Int
-  supplier    Supplier             @relation(fields: [supplierId], references: [id])
+  supplierId  Int?
+  supplier    Supplier?            @relation(fields: [supplierId], references: [id])
   reason      String?
   totalAmount Float
   returnDate  DateTime             @default(now())
