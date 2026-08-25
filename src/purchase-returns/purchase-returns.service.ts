@@ -48,8 +48,9 @@ export class PurchaseReturnsService {
       throw new NotFoundException('Purchase order not found. Please verify the PO Number.');
     }
 
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const count = await this.prisma.purchaseReturn.count({ where: { companyId } });
-    const returnNo = `PR-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+    const returnNo = `PR-${companyId}-${datePrefix}-${(count + 1).toString().padStart(3, '0')}`;
 
     return this.prisma.$transaction(async (tx) => {
       let totalRefundAmount = 0;

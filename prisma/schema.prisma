@@ -457,7 +457,7 @@ model JournalEntryLine {
 
 model PurchaseReturn {
   id          Int                  @id @default(autoincrement())
-  returnNo    String               @unique
+  returnNo    String
   purchaseId  Int
   purchase    Purchase             @relation(fields: [purchaseId], references: [id])
   supplierId  Int?
@@ -469,6 +469,8 @@ model PurchaseReturn {
   companyId   Int                  @default(1)
   company     Company              @relation(fields: [companyId], references: [id])
   items       PurchaseReturnItem[]
+
+  @@unique([returnNo, companyId])
 }
 
 model PurchaseReturnItem {
@@ -487,7 +489,7 @@ model PurchaseReturnItem {
 
 model SaleReturn {
   id          Int              @id @default(autoincrement())
-  returnNo    String           @unique
+  returnNo    String
   saleId      Int
   sale        Sale             @relation(fields: [saleId], references: [id])
   customerId  Int?
@@ -499,6 +501,8 @@ model SaleReturn {
   companyId   Int              @default(1)
   company     Company          @relation(fields: [companyId], references: [id])
   items       SaleReturnItem[]
+
+  @@unique([returnNo, companyId])
 }
 
 model SaleReturnItem {

@@ -37,8 +37,9 @@ export class SalesReturnsService {
       throw new NotFoundException('Sale transaction not found. Please verify the Invoice Number.');
     }
 
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const count = await this.prisma.saleReturn.count({ where: { companyId } });
-    const returnNo = `SR-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+    const returnNo = `SR-${companyId}-${datePrefix}-${(count + 1).toString().padStart(3, '0')}`;
 
     return this.prisma.$transaction(async (tx) => {
       let totalReturnSubtotal = 0;
@@ -106,9 +107,9 @@ export class SalesReturnsService {
       const saleReturn = await tx.saleReturn.create({
         data: {
           returnNo,
-          saleId: dto.saleId,
+          saleId: sale.id,
           customerId: sale.customerId,
-          reason: dto.reason,
+          reason: dto.reason || 'Customer Return',
           totalAmount: Number(totalReturnTotal.toFixed(2)),
           companyId,
           items: {
