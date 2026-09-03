@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
+import { BadRequestException, Injectable, PipeTransform, Optional } from '@nestjs/common';
 import { DateConverterService } from '../utils/date-converter.service';
 
 const BS_DATE_FIELDS = [
@@ -16,7 +16,11 @@ const BS_DATE_FIELDS = [
 
 @Injectable()
 export class BsToAdPipe implements PipeTransform {
-  constructor(private readonly dateConverter: DateConverterService) {}
+  private readonly dateConverter: DateConverterService;
+
+  constructor(@Optional() dateConverter?: DateConverterService) {
+    this.dateConverter = dateConverter || new DateConverterService();
+  }
 
   transform(value: any): any {
     if (!value || typeof value !== 'object') return value;
