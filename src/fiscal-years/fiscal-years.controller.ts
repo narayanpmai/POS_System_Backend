@@ -5,6 +5,7 @@ import { CreateFiscalYearDto, UpdateFiscalYearDto } from './dto/fiscal-year.dto'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Fiscal Years')
 @ApiBearerAuth()
@@ -28,14 +29,14 @@ export class FiscalYearsController {
   @Post()
   @Roles('Admin')
   @ApiOperation({ summary: 'Create a new fiscal year (Admin only)' })
-  create(@Req() req: any, @Body() createDto: CreateFiscalYearDto) {
+  create(@Req() req: any, @Body(BsToAdPipe) createDto: CreateFiscalYearDto) {
     return this.fiscalYearsService.create(req.user.companyId, createDto);
   }
 
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update a fiscal year (Admin only)' })
-  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateFiscalYearDto) {
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body(BsToAdPipe) updateDto: UpdateFiscalYearDto) {
     return this.fiscalYearsService.update(req.user.companyId, id, updateDto);
   }
 
@@ -56,7 +57,7 @@ export class FiscalYearsController {
   @Post(':id/close')
   @Roles('Admin')
   @ApiOperation({ summary: 'Close fiscal year and carry forward stock (Admin only)' })
-  closeFiscalYear(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() nextFyDto?: any) {
+  closeFiscalYear(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body(BsToAdPipe) nextFyDto?: any) {
     return this.fiscalYearsService.closeFiscalYear(req.user.companyId, id, nextFyDto);
   }
 

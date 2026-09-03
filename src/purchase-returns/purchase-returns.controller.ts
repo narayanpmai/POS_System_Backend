@@ -3,6 +3,7 @@ import { PurchaseReturnsService } from './purchase-returns.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Purchase Returns')
 @ApiBearerAuth()
@@ -13,7 +14,7 @@ export class PurchaseReturnsController {
 
   @Post()
   @ApiOperation({ summary: 'Process a purchase return debit memo' })
-  async create(@Req() req: any, @Body() data: any) {
+  async create(@Req() req: any, @Body(BsToAdPipe) data: any) {
     return this.purchaseReturnsService.create(req.user.companyId, req.user.id, data);
   }
 

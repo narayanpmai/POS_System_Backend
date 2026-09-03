@@ -8,6 +8,9 @@ import { AllowedHostMiddleware } from './common/middlewares/allowed-host.middlew
 import { SanitizeInterceptor } from './common/interceptors/sanitize.interceptor';
 import { ExcludePasswordInterceptor } from './common/interceptors/exclude-password.interceptor';
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
+import { BsDateTransformInterceptor } from './common/interceptors/bs-date-transform.interceptor';
+import { DateConverterService } from './common/utils/date-converter.service';
+import { BsToAdPipe } from './common/pipes/bs-to-ad.pipe';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -92,6 +95,12 @@ import { ShiftsModule } from './shifts/shifts.module';
     {
       provide: APP_INTERCEPTOR,
       useClass: TimeoutInterceptor,
+    },
+    DateConverterService,
+    BsToAdPipe,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: BsDateTransformInterceptor,
     },
   ],
 })

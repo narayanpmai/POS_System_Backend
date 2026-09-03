@@ -4,6 +4,7 @@ import { CreateSaleDto } from './dto/sales.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('POS Transactions')
 @ApiBearerAuth()
@@ -15,7 +16,7 @@ export class SalesController {
   @Post('checkout')
   @ApiOperation({ summary: 'Process a new POS transaction checkout' })
   @ApiResponse({ status: 201, description: 'Sale processed successfully, returns transaction details' })
-  checkout(@Body() dto: CreateSaleDto, @Req() req: any) {
+  checkout(@Body(BsToAdPipe) dto: CreateSaleDto, @Req() req: any) {
     const cashierId = req.user.id;
     return this.salesService.checkout(req.user.companyId, dto, cashierId);
   }
@@ -30,22 +31,12 @@ export class SalesController {
   @ApiQuery({ name: 'categoryId', required: false, type: String })
   findAllSales(
     @Req() req: any,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query(BsToAdPipe) query: any,
   ) {
     const isCashier = req.user?.role?.name === 'Cashier';
     const cashierIdFilter = isCashier ? req.user.id : undefined;
     return this.salesService.findAllSales(req.user.companyId, {
-      page,
-      limit,
-      search,
-      startDate,
-      endDate,
-      categoryId,
+      ...query,
       cashierId: cashierIdFilter,
     });
   }

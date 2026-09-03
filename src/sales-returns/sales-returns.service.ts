@@ -59,12 +59,12 @@ export class SalesReturnsService {
           select: { quantity: true },
         });
         const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
-        const remainingReturnableQty = saleItem.quantity - alreadyReturnedQty;
+        const remainingReturnableQty = Math.round((saleItem.quantity - alreadyReturnedQty) * 1000) / 1000;
 
         if (returnItem.quantity <= 0) {
-          throw new BadRequestException(`Return quantity must be at least 1`);
+          throw new BadRequestException(`Return quantity must be greater than 0`);
         }
-        if (returnItem.quantity > remainingReturnableQty) {
+        if (returnItem.quantity > remainingReturnableQty + 0.0001) {
           throw new BadRequestException(
             `Cannot return ${returnItem.quantity} items for product ID ${saleItem.productId}. Only ${remainingReturnableQty} item(s) eligible for return (Purchased: ${saleItem.quantity}, Already returned: ${alreadyReturnedQty})`,
           );

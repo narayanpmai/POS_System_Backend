@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Purchases & Procurement')
 @ApiBearerAuth()
@@ -16,14 +17,14 @@ export class PurchasesController {
   @Post()
   @Roles('Admin')
   @ApiOperation({ summary: 'Create a new purchase order' })
-  createPurchase(@Body() body: any, @Req() req: any) {
+  createPurchase(@Body(BsToAdPipe) body: any, @Req() req: any) {
     return this.purchasesService.createPurchase(req.user.companyId, body, req.user.id);
   }
 
   @Put(':id')
   @Roles('Admin')
   @ApiOperation({ summary: 'Update an existing purchase order' })
-  updatePurchase(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+  updatePurchase(@Param('id') id: string, @Body(BsToAdPipe) body: any, @Req() req: any) {
     return this.purchasesService.updatePurchase(req.user.companyId, +id, body, req.user.id);
   }
 
@@ -36,13 +37,9 @@ export class PurchasesController {
   @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Format: YYYY-MM-DD' })
   findAll(
     @Req() req: any,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('search') search?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
+    @Query(BsToAdPipe) query: any,
   ) {
-    return this.purchasesService.findAll(req.user.companyId, { page, limit, search, startDate, endDate });
+    return this.purchasesService.findAll(req.user.companyId, query);
   }
 
   @Get(':id')

@@ -4,6 +4,7 @@ import { CreateIncomeDto, UpdateIncomeDto } from './dto/incomes.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Store Incomes')
 @ApiBearerAuth()
@@ -14,7 +15,7 @@ export class IncomesController {
 
   @Post()
   @ApiOperation({ summary: 'Log a new income' })
-  create(@Req() req: any, @Body() dto: CreateIncomeDto) {
+  create(@Req() req: any, @Body(BsToAdPipe) dto: CreateIncomeDto) {
     return this.incomesService.create(req.user.companyId, dto);
   }
 
@@ -38,7 +39,7 @@ export class IncomesController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update logged income' })
-  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIncomeDto) {
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body(BsToAdPipe) dto: UpdateIncomeDto) {
     return this.incomesService.update(req.user.companyId, id, dto);
   }
 

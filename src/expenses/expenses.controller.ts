@@ -4,6 +4,7 @@ import { CreateExpenseDto, UpdateExpenseDto } from './dto/expenses.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Store Expenses')
 @ApiBearerAuth()
@@ -14,7 +15,7 @@ export class ExpensesController {
 
   @Post()
   @ApiOperation({ summary: 'Log a new expense' })
-  create(@Req() req: any, @Body() dto: CreateExpenseDto) {
+  create(@Req() req: any, @Body(BsToAdPipe) dto: CreateExpenseDto) {
     return this.expensesService.create(req.user.companyId, dto);
   }
 
@@ -38,7 +39,7 @@ export class ExpensesController {
 
   @Put(':id')
   @ApiOperation({ summary: 'Update logged expense' })
-  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateExpenseDto) {
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body(BsToAdPipe) dto: UpdateExpenseDto) {
     return this.expensesService.update(req.user.companyId, id, dto);
   }
 

@@ -3,6 +3,7 @@ import { SalesReturnsService } from './sales-returns.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BsToAdPipe } from '../common/pipes/bs-to-ad.pipe';
 
 @ApiTags('Sales Returns')
 @ApiBearerAuth()
@@ -13,7 +14,7 @@ export class SalesReturnsController {
 
   @Post()
   @ApiOperation({ summary: 'Process a sales return credit memo' })
-  async create(@Req() req: any, @Body() data: any) {
+  async create(@Req() req: any, @Body(BsToAdPipe) data: any) {
     return this.salesReturnsService.create(req.user.companyId, req.user.id, data);
   }
 

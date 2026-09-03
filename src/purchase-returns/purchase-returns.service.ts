@@ -68,12 +68,12 @@ export class PurchaseReturnsService {
           select: { quantity: true },
         });
         const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
-        const remainingReturnableQty = purchaseItem.quantity - alreadyReturnedQty;
+        const remainingReturnableQty = Math.round((purchaseItem.quantity - alreadyReturnedQty) * 1000) / 1000;
 
         if (returnItem.quantity <= 0) {
-          throw new BadRequestException('Return quantity must be at least 1');
+          throw new BadRequestException('Return quantity must be greater than 0');
         }
-        if (returnItem.quantity > remainingReturnableQty) {
+        if (returnItem.quantity > remainingReturnableQty + 0.0001) {
           throw new BadRequestException(
             `Cannot return ${returnItem.quantity} units for product ID ${purchaseItem.productId}. Only ${remainingReturnableQty} unit(s) eligible for return (Purchased: ${purchaseItem.quantity}, Already returned: ${alreadyReturnedQty})`,
           );
@@ -84,7 +84,7 @@ export class PurchaseReturnsService {
           where: { id: purchaseItem.productId, companyId },
           select: { stock: true, name: true },
         });
-        if (currentProduct && currentProduct.stock < returnItem.quantity) {
+        if (currentProduct && currentProduct.stock < returnItem.quantity - 0.0001) {
           throw new BadRequestException(
             `Insufficient stock to return "${currentProduct.name}". Current stock: ${currentProduct.stock}, requested return: ${returnItem.quantity}`,
           );
