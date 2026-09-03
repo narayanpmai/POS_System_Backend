@@ -53,26 +53,28 @@ export class SalesReturnsService {
           throw new BadRequestException(`SaleItem ${returnItem.saleItemId} not found in this sale`);
         }
 
+        const returnQty = Math.round(Number(returnItem.quantity) * 1000) / 1000;
+        if (isNaN(returnQty) || returnQty <= 0) {
+          throw new BadRequestException(`Return quantity must be greater than 0`);
+        }
+
         // Check if any quantity was previously returned for this item
         const previousReturns = await tx.saleReturnItem.findMany({
           where: { saleItemId: saleItem.id },
           select: { quantity: true },
         });
-        const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
+        const alreadyReturnedQty = Math.round(previousReturns.reduce((sum, r) => sum + r.quantity, 0) * 1000) / 1000;
         const remainingReturnableQty = Math.round((saleItem.quantity - alreadyReturnedQty) * 1000) / 1000;
 
-        if (returnItem.quantity <= 0) {
-          throw new BadRequestException(`Return quantity must be greater than 0`);
-        }
-        if (returnItem.quantity > remainingReturnableQty + 0.0001) {
+        if (returnQty > remainingReturnableQty + 0.0001) {
           throw new BadRequestException(
-            `Cannot return ${returnItem.quantity} items for product ID ${saleItem.productId}. Only ${remainingReturnableQty} item(s) eligible for return (Purchased: ${saleItem.quantity}, Already returned: ${alreadyReturnedQty})`,
+            `Cannot return ${returnQty} items for product ID ${saleItem.productId}. Only ${remainingReturnableQty} item(s) eligible for return (Purchased: ${saleItem.quantity}, Already returned: ${alreadyReturnedQty})`,
           );
         }
 
-        const refundSubtotal = saleItem.price * returnItem.quantity;
-        const refundTax = (saleItem.taxAmount / saleItem.quantity) * returnItem.quantity;
-        const refundTotal = refundSubtotal + refundTax;
+        const refundSubtotal = Number((saleItem.price * returnQty).toFixed(2));
+        const refundTax = saleItem.quantity > 0 ? Number(((saleItem.taxAmount / saleItem.quantity) * returnQty).toFixed(2)) : 0;
+        const refundTotal = Number((refundSubtotal + refundTax).toFixed(2));
 
         totalReturnSubtotal += refundSubtotal;
         totalReturnTax += refundTax;
@@ -80,14 +82,14 @@ export class SalesReturnsService {
 
         itemsToCreate.push({
           saleItemId: saleItem.id,
-          quantity: returnItem.quantity,
+          quantity: returnQty,
           refundAmount: refundTotal,
         });
 
         // 1. Update product stock
         await tx.product.update({
           where: { id: saleItem.productId, companyId },
-          data: { stock: { increment: returnItem.quantity } },
+          data: { stock: { increment: returnQty } },
         });
 
         // 2. Log inventory transaction
@@ -95,11 +97,11 @@ export class SalesReturnsService {
           data: {
             productId: saleItem.productId,
             type: 'STOCK_IN',
-            quantity: returnItem.quantity,
+            quantity: returnQty,
             reason: `Sale Return ${returnNo} (Sale: ${sale.invoiceNo})`,
             userId,
             companyId,
-          }
+          },
         });
       }
 

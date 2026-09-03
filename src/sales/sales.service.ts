@@ -323,8 +323,25 @@ export class SalesService {
         returnStatus = 'PARTIAL';
       }
 
+      const enrichedSaleItems = (sale.items || []).map((item) => {
+        let returnedQty = 0;
+        for (const ret of sale.saleReturns || []) {
+          for (const retItem of ret.items || []) {
+            if (retItem.saleItemId === item.id) {
+              returnedQty += retItem.quantity;
+            }
+          }
+        }
+        return {
+          ...item,
+          returnedQuantity: Math.round(returnedQty * 1000) / 1000,
+          remainingQuantity: Math.max(0, Math.round((item.quantity - returnedQty) * 1000) / 1000),
+        };
+      });
+
       return {
         ...sale,
+        items: enrichedSaleItems,
         totalRefunded,
         netAmount: Math.max(0, Number((sale.totalAmount - totalRefunded).toFixed(2))),
         returnStatus,
@@ -380,8 +397,8 @@ export class SalesService {
       }
       return {
         ...item,
-        returnedQuantity: returnedQty,
-        remainingQuantity: Math.max(0, item.quantity - returnedQty),
+        returnedQuantity: Math.round(returnedQty * 1000) / 1000,
+        remainingQuantity: Math.max(0, Math.round((item.quantity - returnedQty) * 1000) / 1000),
       };
     });
 

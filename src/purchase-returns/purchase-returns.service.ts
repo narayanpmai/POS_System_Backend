@@ -62,20 +62,22 @@ export class PurchaseReturnsService {
           throw new BadRequestException(`PurchaseItem ${returnItem.purchaseItemId} not found in this purchase`);
         }
 
+        const returnQty = Math.round(Number(returnItem.quantity) * 1000) / 1000;
+        if (isNaN(returnQty) || returnQty <= 0) {
+          throw new BadRequestException('Return quantity must be greater than 0');
+        }
+
         // Check already returned quantities for this purchase item
         const previousReturns = await tx.purchaseReturnItem.findMany({
           where: { purchaseItemId: purchaseItem.id },
           select: { quantity: true },
         });
-        const alreadyReturnedQty = previousReturns.reduce((sum, r) => sum + r.quantity, 0);
+        const alreadyReturnedQty = Math.round(previousReturns.reduce((sum, r) => sum + r.quantity, 0) * 1000) / 1000;
         const remainingReturnableQty = Math.round((purchaseItem.quantity - alreadyReturnedQty) * 1000) / 1000;
 
-        if (returnItem.quantity <= 0) {
-          throw new BadRequestException('Return quantity must be greater than 0');
-        }
-        if (returnItem.quantity > remainingReturnableQty + 0.0001) {
+        if (returnQty > remainingReturnableQty + 0.0001) {
           throw new BadRequestException(
-            `Cannot return ${returnItem.quantity} units for product ID ${purchaseItem.productId}. Only ${remainingReturnableQty} unit(s) eligible for return (Purchased: ${purchaseItem.quantity}, Already returned: ${alreadyReturnedQty})`,
+            `Cannot return ${returnQty} units for product ID ${purchaseItem.productId}. Only ${remainingReturnableQty} unit(s) eligible for return (Purchased: ${purchaseItem.quantity}, Already returned: ${alreadyReturnedQty})`,
           );
         }
 
@@ -84,32 +86,32 @@ export class PurchaseReturnsService {
           where: { id: purchaseItem.productId, companyId },
           select: { stock: true, name: true },
         });
-        if (currentProduct && currentProduct.stock < returnItem.quantity - 0.0001) {
+        if (currentProduct && currentProduct.stock < returnQty - 0.0001) {
           throw new BadRequestException(
-            `Insufficient stock to return "${currentProduct.name}". Current stock: ${currentProduct.stock}, requested return: ${returnItem.quantity}`,
+            `Insufficient stock to return "${currentProduct.name}". Current stock: ${currentProduct.stock}, requested return: ${returnQty}`,
           );
         }
 
-        const refundAmount = purchaseItem.costPrice * returnItem.quantity;
+        const refundAmount = Number((purchaseItem.costPrice * returnQty).toFixed(2));
         totalRefundAmount += refundAmount;
 
         returnItemsData.push({
           purchaseItemId: purchaseItem.id,
-          quantity: returnItem.quantity,
+          quantity: returnQty,
           refundAmount: refundAmount,
         });
 
         // Deduct from stock
         await tx.product.update({
           where: { id: purchaseItem.productId, companyId },
-          data: { stock: { decrement: returnItem.quantity } },
+          data: { stock: { decrement: returnQty } },
         });
 
         // Log Inventory Transaction
         await tx.inventoryTransaction.create({
           data: {
             productId: purchaseItem.productId,
-            quantity: returnItem.quantity,
+            quantity: returnQty,
             type: 'STOCK_OUT',
             reason: 'Purchase Return',
             userId: userId,
